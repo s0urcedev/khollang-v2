@@ -23,3 +23,4 @@ but in a newer interpreter that does not have to be an exact copy of the Python 
 - `./v1` – V1 code
 - `./v1/interpreter` – V1 interpreter implementation
 - `./docs` – documentation
+- `./docs/syntax.md` – Khollang syntax guide 

@@ -18,9 +18,9 @@ but in a newer interpreter that does not have to be an exact copy of the Python 
 ## Project structure
 
 - `./.claude` – Claude files
+    - `./.claude/docs` – documentation for Claude
+    - `./.claude/docs/syntax.md` – Khollang syntax reference 
 - `./src` – main code
 - `./src/interpreter` – interpreter implementation
 - `./v1` – V1 code
 - `./v1/interpreter` – V1 interpreter implementation
-- `./docs` – documentation
-- `./docs/syntax.md` – Khollang syntax guide 

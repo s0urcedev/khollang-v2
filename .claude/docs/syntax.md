@@ -440,29 +440,32 @@ output [1, 2] = (1, 2)                  // false: an array and a Tuple
 
 ## 8. Variables and assignment
 
-### 8.1 The three kinds of variables
+### 8.1 The four kinds of variables
 
-| Kind | Declaration | Declaration without a value | Later assignment |
-|---|---|---|---|
-| **Untyped** | `let X = Y`, or an assignment `X = Y` to an undeclared name | `let X` (same as `let X = none`) | any value of any type |
-| **Constant** | `const X = Y` | **not allowed** | **not allowed** |
-| **Typed** | `T X = Y` | `T X` (gets *T*'s default value) | only values that fit *T* |
+| Kind | Declared by | Declaration without a value | Later assignment | Can be redeclared |
+|---|---|---|---|---|
+| **Constant** (explicit) | `const X = Y` | **not allowed** | **not allowed** | no |
+| **Typed** (explicit) | `T X = Y` | `T X` (gets *T*'s default value) | only values that fit *T* | no |
+| **Explicit untyped** | `let X = Y` | `let X` (same as `let X = none`) | any value of any type | no |
+| **Implicit untyped** | an assignment `X = Y`, `input X` or a for loop `loop X from ...` with an undeclared name *X* | — | any value of any type | **yes**, by an explicit declaration ([12.4](#124-declarations-redeclaration-and-shadowing)) |
 
-In every declaration, the assignment operator can be any of `=`, `:=`, `<-` ([8.5](#85-assignment)): `let X := 1`, `const C <- 2`, `Number N := 3`.
-
-A variable's kind is fixed when it is declared. Kinds cannot be combined: `const Number X = 1` is an error.
+- **Explicit declarations** are `const`, typed and `let` declarations, plus function, procedure and structure definitions ([12.6](#126-local-definitions)).
+- **Implicit declarations** happen when a name that is not declared is assigned to (`X = Y`), read into (`input X`) or used as a for-loop variable.
+- In every declaration, the assignment operator can be any of `=`, `:=`, `<-` ([8.5](#85-assignment)): `let X := 1`, `const C <- 2`, `Number N := 3`.
+- A variable's kind is fixed when it is declared. Kinds cannot be combined: `const Number X = 1` is an error.
 
 ### 8.2 Untyped variables
+
+Untyped variables are meant to be declared **with `let`**:
 
 ```
 let X = Y
 let X
-X = Y
 ```
 
-- `let X = Y` **declares** a new untyped variable *X* in the current scope with the value *Y*.
+- `let X = Y` **declares** a new explicit untyped variable *X* in the current scope with the value *Y*.
 - `let X` declares it with the value `none`.
-- `let` always declares. If *X* is already declared in the current scope, or visible from an enclosing block of the same function ([12.4](#124-declarations-redeclaration-and-shadowing)), it is an error:
+- `let` always declares. Redeclaring an explicit variable is an error ([12.4](#124-declarations-redeclaration-and-shadowing)):
 
   ```
   let X = 5
@@ -470,8 +473,23 @@ X = Y
   X = 3       // fine: assignment
   ```
 
+If a variable is assigned **before** it is declared, it is declared **implicitly**:
+
+```
+X = Y
+```
+
 - A plain assignment `X = Y` (without `let`) to a name that is not declared in the current function's local scopes ([12.3](#123-assignment-and-implicit-declaration)) implicitly declares a new untyped variable *X* in the current scope. If *X* is already declared, it is an ordinary assignment.
-- An untyped variable can hold any value, including `none`, functions, procedures and structure definitions. Later assignments may change the type of its value.
+- `input X` and a for loop with a new loop variable *X* also declare *X* implicitly ([9.1](#91-input-read-a-value-from-standard-input), [10.3.3](#1033-for-loop)).
+- Unlike explicit variables, an implicit variable **can still be redeclared** by an explicit declaration (`let`, `const`, typed, or a definition):
+
+  ```
+  X = 5          // implicitly declares X
+  let X = 3      // fine: X is now an explicit untyped variable with the value 3
+  let X = 1      // error: X is now explicit and cannot be redeclared
+  ```
+
+Both explicit and implicit untyped variables can hold any value, including `none`, functions, procedures and structure definitions. Later assignments may change the type of their value.
 
 ### 8.3 Constants
 
@@ -781,7 +799,7 @@ end loop
 
   | *X* is... | Behaviour |
   |---|---|
-  | not declared | declared as a new untyped variable in the scope **containing the loop** (not in the loop body) |
+  | not declared | **implicitly** declared as a new untyped variable in the scope **containing the loop** (not in the loop body) |
   | an untyped variable | assigned the loop values |
   | a typed variable | must be of type `Number`, otherwise it is an error |
   | a constant | error |
@@ -973,13 +991,35 @@ output TEMP                // error: TEMP does not exist here
 
 ### 12.4 Declarations, redeclaration and shadowing
 
-Redeclarations are **not allowed**. Declaring a name (with `let`, `const`, a typed declaration, or a function, procedure or structure definition) is an error if that name already exists in the **local scopes** of the line:
+Only **implicit untyped** variables can be redeclared. Every other kind (constants, typed variables, explicit untyped variables, and function, procedure and structure definitions) cannot.
+
+When an **explicit** declaration (`let`, `const`, a typed declaration, or a function, procedure or structure definition) of a name *X* runs, the result depends on what *X* already is in the **local scopes** of the line ([12.2](#122-block-scopes)):
+
+| *X* in the local scopes | Result |
+|---|---|
+| does not exist | a new variable *X* is declared in the current scope |
+| an **explicit** variable (in the current scope or an enclosing block) | **error**: redeclaration |
+| an **implicit** variable declared in the **current** scope | allowed: the implicit variable is **replaced** by the new explicit one, with the value of the new declaration |
+| an **implicit** variable declared in an **enclosing** block or function scope | allowed: a new variable *X* is declared in the current block and **shadows** the outer one until the end of the block. The outer variable is unchanged and is visible again after the block |
+
+An implicit declaration never redeclares anything. Assigning to, reading into or looping over a name that already exists in the local scopes is an ordinary assignment to that variable.
 
 ```
 let X = 1
 if true then
-    let X = 2        // error: X is visible from the enclosing scope
+    let X = 2        // error: X is an explicit variable visible from the enclosing scope
 end if
+
+Y = 5                // implicit
+let Y = 6            // fine: replaces the implicit Y (same scope)
+const Y = 7          // error: Y is now explicit
+
+Z = 5                // implicit
+if true then
+    let Z = 3        // fine: a new block-local Z shadows the outer one
+    Z = 4            // assigns the block-local Z
+end if
+output Z             // outputs 5: the outer Z is unchanged
 
 function F() begin
     let X = 2        // fine: shadows the global X inside F
@@ -1050,7 +1090,7 @@ A function, procedure or structure definition behaves like **declaring a variabl
 - A definition inside a function or procedure belongs to that call's scope.
 - A definition inside a block (e.g. inside an `if`) belongs to that block's scope and disappears at the end of the block.
 - Only code that can see that scope can call the definition.
-- The declared variable is **untyped**, so it can later be reassigned. Declaring the same name again in the local scopes is a redeclaration error ([12.4](#124-declarations-redeclaration-and-shadowing)).
+- The declared variable is **untyped**, so it can later be reassigned. A definition is an **explicit** declaration: it can replace or shadow an implicit variable, but declaring the same name again afterwards in the local scopes is a redeclaration error ([12.4](#124-declarations-redeclaration-and-shadowing)).
 
 ### 12.7 Definitions are values
 
@@ -1325,7 +1365,7 @@ The following are errors according to this document:
 | Using `None` as a type | error |
 | A missing `end ...` for an opened block | error |
 | **Variables** | |
-| Declaring a name that already exists in the local scopes (redeclaration) | error |
+| Explicitly declaring a name that already exists in the local scopes as an explicit variable (constant, typed, `let`, or a definition) | error |
 | `const X` without a value | error |
 | Combining `const` with a type (`const Number X = 1`) | error |
 | Assigning to a constant (including `input` into a constant and using it as a for-loop variable) | error |
@@ -1536,7 +1576,7 @@ V2 keeps V1's overall syntax, with these fixes, clarifications, changes and exte
 - **No implicit casting** anywhere. Operators require operands of matching types, and conditions must be Booleans.
 
 **Extensions**
-- Three kinds of variables: untyped (`let X = Y`, `let X`, `X = Y`), constants (`const X = Y`) and typed (`T X = Y`, `T X`). Redeclarations are not allowed.
+- Four kinds of variables: constants (`const X = Y`), typed (`T X = Y`, `T X`), explicit untyped (`let X = Y`, `let X`) and implicit untyped (assignment before declaration, `X = Y`). Only implicit untyped variables can be redeclared.
 - Typed collections `C<T>`, `Dictionary<K, T>`, alongside the untyped forms.
 - `Tuple` and `Tuple<T1, ..., Tn>`, with the literal `(X, Y, ...)`.
 - Explicit type casting through constructors: `Number(X)`, `String(X)`, `Boolean(X)`, `Array<T>(B)`, ...

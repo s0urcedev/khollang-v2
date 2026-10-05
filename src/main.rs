@@ -1,4 +1,4 @@
-fn main() {
-    let str = "Hello, World!".to_owned();
-    println!("{}", str);
-}
+#[allow(dead_code)]
+mod interpreter;
+
+fn main() {}

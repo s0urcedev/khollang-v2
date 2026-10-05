@@ -53,22 +53,28 @@ enum TokenKind {
     Boolean(bool),
     None,
     Symbol(Symbol),       // = == != <> < <= > >= := <- + - * / ~ & | ^ ==> <==> << >> ( ) [ ] { } , . :
+                          // and the word operators: not and or xor imp iff mod div pow
 }
 ```
 
 - The lexer produces a `Vec<Line>`.
 - Lines that the lexer generates while desugaring carry the line number of the source statement they come from. Errors in them are reported on that line.
+- `column` is 1-based and counts characters (a tab is one column). Generated tokens take the column of the first token of the source line.
+- Lexing stops at the first error. An error carries the line, the column (when known) and a message: `Error { line, column: Option<usize>, message }`.
 
 ### 3.2 Normalisation
 
 - **Keywords** are recognised in their three accepted spellings ([syntax 3.1](syntax.md#31-the-not-case-sensitive-rule)) and become `Keyword` tokens. Other spellings (e.g. `wHile`) are identifiers.
-- **Multi-word keywords** become single tokens: `end if` → `EndIf`, `end loop` → `EndLoop`, `end match` → `EndMatch`, `end function` → `EndFunction`, `end procedure` → `EndProcedure`, `end structure` → `EndStructure`, `else if` → `ElseIf`.
-- **Word operators** (`not`, `and`, `or`, `xor`, `imp`, `iff`, `mod`, `div`, `pow`) become operator tokens, like `+`.
+- **Multi-word keywords** become single tokens: `end if` → `EndIf`, `end loop` → `EndLoop`, `end match` → `EndMatch`, `end function` → `EndFunction`, `end procedure` → `EndProcedure`, `end structure` → `EndStructure`, `else if` → `ElseIf`. An `end` that is not followed by `if`, `loop`, `match`, `function`, `procedure` or `structure` is an error.
+- **Word operators** (`not`, `and`, `or`, `xor`, `imp`, `iff`, `mod`, `div`, `pow`) become `Symbol` tokens, like `+`.
+- **Source characters**: lines end with `\n` or `\r\n`. Outside strings and comments, only ASCII letters, digits, `_`, space, tab and the symbols are allowed, so identifiers are ASCII only and any other character (`;`, `'`, `é`, ...) is an error. Strings and comments may contain any character.
 - **Built-in type names** are reserved ([syntax 4.1](syntax.md#41-identifiers)), so they become `Type` tokens. Custom structure names stay identifiers. The parser decides from the position whether an identifier is a structure type.
 - **Comments** are removed.
 - **String literals**: the quotes are removed and escapes are resolved. An unknown escape is an error.
-- **Number literals** are validated (`1.`, `.5`, `1A` are errors) and become `Integer` or `Float` tokens. An Integer literal that does not fit in `i64` is an error.
+- **Number literals** are `digits` or `digits.digits` and become `Integer` or `Float` tokens. Anything else that looks like a number is an error: `1.`, `.5`, `1.2.3`, `5.x`, `1A`. A `.` is allowed only as the attribute / method symbol, so a `.` next to a digit that is not part of `digits.digits` is an error, but `1.2.copy()` lexes. An Integer literal that does not fit in `i64` is an error, so `-9223372036854775808` cannot be written as a literal. A Float literal that overflows to infinity is not a lexer error: it is checked at execution like any other Float overflow.
 - A `#` outside a string or comment is an error.
+- **Brackets** `( ) [ ] { }` must be balanced and properly nested on each line.
+- **Optional header keywords** (`then`, `with`, `do`, `begin`, `has`, `for`) are dropped by the lexer where the syntax allows them ([3.4](#34-validation)) and are an error anywhere else. The lexer output never contains them.
 - Symbols are matched longest first, so `<==>`, `==>`, `<<`, `>>` and `<-` are always single tokens. The parser decides whether `<-` is assignment ([4.3](#43-assignment-and--)).
 
 ### 3.3 Desugaring
@@ -134,6 +140,29 @@ end loop              ──▶         A = #ITERATOR{N}.next()
 - *B* is evaluated once.
 - *A* is set inside the body, with the same consequences as for the for loop.
 - `iterator()`, `has_next()` and `next()` are implemented by the interpreter for every iterable collection ([5.3](#53-iterators)).
+
+### 3.4 Validation
+
+Desugaring would hide some structural mistakes (`end if` closing a `match` would silently be accepted), so the lexer checks everything it can before the parser runs. It keeps a stack of the open blocks (`if`, `match`, `loop`, `function`, `procedure`, `structure`) and reports:
+
+- an `end ...` that does not match the innermost open block, an `end ...` without an open block, and a block that is still open at the end of the source;
+- `else` / `else if` when the innermost block is not an `if`, and `case` / `otherwise` when it is not a `match`;
+- a line between `match` and its first `case`, a `match` without any `case`, a `case` after `otherwise`, a second `otherwise`;
+- anything after `end ...`, `else` or `otherwise` on the same line.
+
+Wherever the syntax expects a **variable name** (the loop variable), the lexer requires exactly one identifier. Wherever it expects an **expression** (`if`, `else if`, `loop while`, `loop until`, `match`, `case`, the bounds of a for loop, the collection of a for-each loop), it requires exactly one expression: not empty, no header keyword inside, and no top-level `,`. A top-level `,` would turn the expression into a tuple once it is wrapped in parentheses. Commas inside brackets and inside the type arguments of a built-in type (`Dictionary<K, V>`) are not top-level.
+
+Where the optional header keywords are expected, the lexer drops them:
+
+| Line | Dropped |
+|---|---|
+| `if`, `else if`, `case` | a last `then` |
+| `match` | a last `with` |
+| `loop while`, `loop until`, for, for-each | a last `do`, and `for` right after `loop` |
+| `function`, `procedure` | a last `begin` |
+| `structure` | a last `has` |
+
+`else` and `otherwise` have no optional keyword. Whether an `if` has more than one `else`, and the order of its branches, is left to the parser.
 
 ## 4. Parser
 
@@ -236,17 +265,17 @@ enum Type {
 
 ### 4.4 Statements and blocks
 
-- The optional header keywords `then`, `with`, `do`, `begin` and `has` are accepted and dropped by the parser.
-- The parser matches each block header with its `end ...` line and builds nested `Block`s.
+- The optional header keywords `then`, `with`, `do`, `begin`, `has` and `for` never reach the parser: the lexer drops them ([3.4](#34-validation)).
+- The parser matches each block header with its `end ...` line and builds nested `Block`s. The lexer has already checked that the blocks are properly nested ([3.4](#34-validation)).
 
 ### 4.5 Static checks
 
 The lexer and the parser report these errors before execution starts:
 
-- syntax errors, a missing or mismatched `end ...`;
+- syntax errors, a missing or mismatched `end ...` (reported by the lexer, [3.4](#34-validation));
 - a built-in type name or a keyword used as an identifier;
 - `const` without a value, `const` combined with a type;
-- `match` without any `case`;
+- `match` without any `case` (reported by the lexer);
 - chained comparisons;
 - `break` or `continue` outside a loop;
 - `return` outside a function or procedure, a bare `return` in a function, `return EXPR` in a procedure;

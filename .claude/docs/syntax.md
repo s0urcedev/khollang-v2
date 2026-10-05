@@ -453,6 +453,7 @@ Notes:
 - A negative shift amount (`1 << -1`) is a runtime error, like in Python.
 - A Float result that is not a finite real number is a runtime error. This covers overflow to infinity (`10.0 pow 400.0`) and results that are not real numbers (`(-8.0) pow 0.5`).
 - An Integer result that does not fit in a signed 64-bit integer (from `-9223372036854775808` to `9223372036854775807`) is a runtime error.
+- An Integer literal that does not fit in `i64` is an error. Negative numbers are a unary `-` applied to a literal, so the literal `9223372036854775808` is an error and the smallest Integer cannot be written as a literal: write `-9223372036854775807 - 1`.
 - Comparing values of **different types** for equality is not an error. See [7.3](#73-equality) for exactly when two values are equal.
 - Ordering (`<`, `>`, `<=`, `>=`) between values of different types is a runtime error.
 - Inside an expression, `<-` is never assignment: it is read as `<` followed by a unary `-`. `if X<-1 then` means `if X < -1 then`.

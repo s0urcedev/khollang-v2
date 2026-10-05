@@ -69,7 +69,7 @@ It is based on the V1 language description (`v1/README.md`). Where V2 clarifies,
 
 ```
 // Reads a number and says whether it is negative, zero or positive
-Number X
+Integer X
 input X
 
 if X < 0 then
@@ -87,9 +87,9 @@ end if
 |---|---|---|
 | Variable names (identifiers), including names of functions, procedures and custom structures | **Yes** | `X` and `x` are two different variables |
 | Keywords (`if`, `loop`, `end`, `let`, `const`, `output`, ...) | **No** (see the rule below) | `while`, `WHILE`, `While` |
-| Word operators `NOT`, `AND`, `OR`, `XOR`, `mod`, `div`, `pow` | **No** (see the rule below) | `and`, `AND`, `And` |
+| Word operators `NOT`, `AND`, `OR`, `XOR`, `IMP`, `IFF`, `mod`, `div`, `pow` | **No** (see the rule below) | `and`, `AND`, `And` |
 | Literals `true`, `false`, `none` | **No** (see the rule below) | `true`, `TRUE`, `True` |
-| Type names (`Number`, `String`, `Array`, `Tuple`, `Stack`, ...) | **Yes** | `Number` is valid, `number` is not |
+| Type names (`Integer`, `String`, `Array`, `Tuple`, `Stack`, ...) | **Yes** | `Integer` is valid, `integer` is not |
 | Method names (`push`, `size`, `is_empty`, ...) | **Yes** | `X.push(1)` is valid, `X.Push(1)` is not |
 
 ### 3.1 The "not case-sensitive" rule
@@ -125,11 +125,14 @@ Identifiers name variables, constants, functions, procedures, parameters, custom
 - It must **not** start with a digit.
 - Identifiers are case-sensitive.
 
-Valid: `X`, `total`, `MY_VAR`, `_tmp`, `A1`. Invalid: `1A`, `my-var`.
+Valid: `X`, `total`, `MY_VAR`, `_tmp`, `A1`. Invalid: `1A`, `my-var`, `#X`.
+
+- The character `#` is not allowed anywhere in a program, except inside string literals and comments. (The interpreter uses names starting with `#` internally, so they can never clash with names in the program.)
+- Built-in type names are reserved and **cannot** be used as identifiers: `Integer`, `Float`, `String`, `Boolean`, `Array`, `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary`, `Map`, `Stack`, `Queue`, `Set`, `Multiset`, `Tuple`. Type names are case-sensitive, so other spellings (`integer`, `INTEGER`) are ordinary identifiers.
 
 ### 4.2 Reserved words
 
-The following words are keywords. They cannot be used as identifiers in any of their accepted spellings (lowercase, UPPERCASE, Capitalised):
+The following words are keywords. They cannot be used as identifiers in any of their accepted spellings (lowercase, UPPERCASE, Capitalised). Other spellings are not keywords and can be used as identifiers: `wHile` is a valid identifier.
 
 ```
 let       const
@@ -142,16 +145,19 @@ function  procedure begin     return
 structure has
 global    nonlocal
 true      false     none
-not       and       or        xor       mod       div       pow
+not       and       or        xor       imp       iff
+mod       div       pow
+in
 ```
 
 ## 5. Literals
 
-### 5.1 Number
+### 5.1 Integer and Float
 
-- Integers: one or more digits, e.g. `0`, `7`, `42`.
-- Decimals: digits, a `.`, then digits, with **digits required on both sides of the dot**, e.g. `3.14`, `0.5`.
+- **Integer** literals: one or more digits, e.g. `0`, `7`, `42`.
+- **Float** literals: digits, a `.`, then digits, with **digits required on both sides of the dot**, e.g. `3.14`, `0.5`, `2.0`.
   - `1.` and `.5` are not valid number literals.
+  - A literal with a dot is always a Float, even if its fractional part is zero: `2.0` is a Float, `2` is an Integer.
 - There is no exponent notation (`1e5` is not a number literal).
 - Negative numbers are written with unary minus: `-1`, `-3.5` (see [7.2](#72-operators)).
 
@@ -189,7 +195,7 @@ Example: `output "She said \"hi\"\n\tand left"`.
 
 - A sequence of elements *X*, *Y*, *Z*, ... in order. Elements are arbitrary expressions. All of them are optional: `[]` has no elements.
 - Which structure it creates depends on where it is used (see [6.6](#66-when-a-value-fits-a-type)):
-  - Where the value must fit a declared collection type (e.g. `StaticArray<Number> S = [1, 2]`, `Stack S = [1, 2]`), it creates **that** collection.
+  - Where the value must fit a declared collection type (e.g. `StaticArray<Integer> S = [1, 2]`, `Stack S = [1, 2]`), it creates **that** collection.
   - Otherwise (an untyped variable, a plain expression, `let X = [1, 2]`), it creates an untyped **LazyArray** ([13.1](#131-array--lazyarray)).
 - Literals can nest: `[[1, 2], [3]]`, `[1, {"a": [2, 3]}]`.
 
@@ -212,7 +218,7 @@ Example: `output "She said \"hi\"\n\tand left"`.
 (X, Y, ...)   // two or more elements
 ```
 
-- Creates a **Tuple** ([13.10](#1310-tuple)). Elements are arbitrary expressions.
+- Creates a **Tuple** ([13.9](#139-tuple)). Elements are arbitrary expressions.
 - `(X)` without a comma is **not** a tuple. It is the parenthesised expression *X*.
 - Where the value must fit `Tuple<T1, T2, ...>`, the tuple is of that typed form. Otherwise it is an untyped Tuple.
 - Literals can nest: `((1, 2), [3], {"a": (4,)})`.
@@ -223,21 +229,23 @@ Example: `output "She said \"hi\"\n\tand left"`.
 
 | Type name | Literal form | Default value |
 |---|---|---|
-| `Number` | `0`, `42`, `3.14` | `0` |
+| `Integer` | `0`, `42` | `0` |
+| `Float` | `3.14`, `2.0` | `0.0` |
 | `String` | `"text"` | `""` |
 | `Boolean` | `true` / `false` | `false` |
 
-- `Number` is a **single type** covering both integers and decimals.
+- `Integer` holds whole numbers and `Float` holds decimal numbers. They are **two different types**: `2` is an Integer and `2.0` is a Float.
+- An Integer is never converted to a Float (or the other way round) automatically. Conversion is only explicit: `Float(X)`, `Integer(X)` ([6.7](#67-type-casting)).
 - The value `none` is not of any of these types. It can be stored only where no type is declared (untyped variables, untyped collections, untyped parameters, untyped attributes, untyped function results).
 
 ### 6.2 Non-primitive types
 
-- Built-in collections: `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary` / `Map`, `Stack`, `Queue`, `BinaryTree` / `BinarySearchTree`, `Set`, `Multiset` ([section 13](#13-built-in-data-structures)).
-- `Tuple` ([13.10](#1310-tuple)).
+- Built-in collections: `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary` / `Map`, `Stack`, `Queue`, `Set`, `Multiset` ([section 13](#13-built-in-data-structures)).
+- `Tuple` ([13.9](#139-tuple)).
 - Custom structures: the name of a defined structure is a type ([section 14](#14-custom-structures)).
 - Functions, procedures and structure definitions are values too ([12.7](#127-definitions-are-values)), but they have no type name. They can be stored only in untyped variables.
 
-Names separated by `/` are aliases for the same type: `Array` and `LazyArray` are the same type, and so are `Dictionary` and `Map`, and `BinaryTree` and `BinarySearchTree`.
+Names separated by `/` are aliases for the same type: `Array` and `LazyArray` are the same type, and so are `Dictionary` and `Map`.
 
 ### 6.3 Untyped and typed collections
 
@@ -245,15 +253,15 @@ Every built-in collection and `Tuple` exists in an **untyped** and a **typed** f
 
 | Collection | Untyped form | Typed form |
 |---|---|---|
-| `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Stack`, `Queue`, `BinaryTree` / `BinarySearchTree`, `Set`, `Multiset` | `Array` | `Array<T>` |
+| `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Stack`, `Queue`, `Set`, `Multiset` | `Array` | `Array<T>` |
 | `Dictionary` / `Map` | `Dictionary` | `Dictionary<K, T>` (keys of type *K*, values of type *T*) |
 | `Tuple` | `Tuple` | `Tuple<T1, T2, ...>` (one type per element, for **every** element) |
 
 - An untyped collection stores values of any type, mixed freely, including `none`: `Array A = [1, false, "a", none]`.
 - A typed collection stores only values that fit its element type(s) ([6.6](#66-when-a-value-fits-a-type)). Storing anything else is a runtime error. `none` never fits a type, so typed collections cannot contain `none`.
-- Type arguments can be any type, including typed collections, tuples and custom structures: `Array<Array<Number>>`, `Dictionary<String, Tuple<Number, Boolean>>`, `Set<Point>`.
-- Whitespace inside `< >` is optional: `Dictionary<String,Number>` and `Dictionary< String, Number >` are the same.
-- An untyped collection type and a typed one are **different types**: `Array` is not `Array<Number>`, and `Array<Number>` is not `Array<String>`. A value of one cannot be stored where the other is required. Conversion goes through constructors ([6.7](#67-type-casting)).
+- Type arguments can be any type, including typed collections, tuples and custom structures: `Array<Array<Integer>>`, `Dictionary<String, Tuple<Integer, Boolean>>`, `Set<Point>`.
+- Whitespace inside `< >` is optional: `Dictionary<String,Integer>` and `Dictionary< String, Integer >` are the same.
+- An untyped collection type and a typed one are **different types**: `Array` is not `Array<Integer>`, and `Array<Integer>` is not `Array<String>`. A value of one cannot be stored where the other is required. Conversion goes through constructors ([6.7](#67-type-casting)).
 
 ### 6.4 Default values
 
@@ -261,17 +269,18 @@ A typed declaration without a value ([8.4](#84-typed-variables)) gets the defaul
 
 | Type | Default value |
 |---|---|
-| `Number` | `0` |
+| `Integer` | `0` |
+| `Float` | `0.0` |
 | `String` | `""` |
 | `Boolean` | `false` |
 | any collection (typed or untyped) | an empty collection of that type (a `StaticArray` has length 0) |
 | `Tuple` (untyped) | `()` |
-| `Tuple<T1, T2, ...>` | a tuple of the default values of *T1*, *T2*, ...: `Tuple<Number, String>` → `(0, "")` |
+| `Tuple<T1, T2, ...>` | a tuple of the default values of *T1*, *T2*, ...: `Tuple<Integer, String>` → `(0, "")` |
 | a custom structure | a new instance with default attribute values ([14.3](#143-creating-instances)) |
 
 ### 6.5 Copying and sharing
 
-- Primitive values (Number, String, Boolean) and `none` are **copied** on assignment and when passed as arguments.
+- Primitive values (Integer, Float, String, Boolean) and `none` are **copied** on assignment and when passed as arguments.
 - Non-primitive values are **shared by reference**. Assigning one to another variable, or passing it as an argument, does not copy it. Both names refer to the same object:
 
   ```
@@ -288,13 +297,34 @@ A typed declaration without a value ([8.4](#84-typed-variables)) gets the defaul
 
 - Tuples are immutable, so whether a tuple is copied or shared makes no observable difference.
 
+#### 6.5.1 Explicit copies
+
+Every collection ([section 13](#13-built-in-data-structures)) and every custom structure instance ([section 14](#14-custom-structures)) has two copy methods:
+
+| Syntax | Meaning |
+|---|---|
+| `X.copy()` | a **shallow** copy: a new object of the same type (with the same type arguments) holding the same elements / attribute values. Non-primitive elements are shared with *X* |
+| `X.deep_copy()` | a **deep** copy: like `copy()`, but every element / attribute value that has a `deep_copy()` method (collections and structure instances) is itself deep-copied, recursively |
+
+- Values without a `deep_copy()` method are not copied by `deep_copy()`: primitive values are copied as usual, and functions, procedures, structure definitions and iterators are **shared**.
+- `deep_copy()` works like Python's `deepcopy`: it remembers what it has already copied. If the same object appears several times inside *X*, the copy contains a single copy of it at all those places. A collection that contains itself is copied into a collection that contains the copy.
+
+```
+A = [[1, 2], [3]]
+B = A.copy()
+C = A.deep_copy()
+A[0][0] = 9
+output B[0][0]   // outputs 9: B shares the inner arrays with A
+output C[0][0]   // outputs 1: C has its own inner arrays
+```
+
 ### 6.6 When a value fits a type
 
 Wherever a type is declared (typed variables, typed parameters, typed function results, typed attributes, typed collection elements), the value stored there must **fit** that type. There is **no implicit casting**: a value is never converted automatically to make it fit.
 
 | Declared type | Values that fit |
 |---|---|
-| `Number`, `String`, `Boolean` | a value of exactly that type |
+| `Integer`, `Float`, `String`, `Boolean` | a value of exactly that type (an Integer does not fit `Float` and a Float does not fit `Integer`) |
 | an untyped collection `C` (e.g. `Array`, `Stack`) | an untyped `C` object |
 | a typed collection `C<T>` / `Dictionary<K, T>` | a `C<T>` / `Dictionary<K, T>` object (same collection, same type arguments) |
 | `Tuple` | an untyped Tuple |
@@ -307,45 +337,52 @@ Wherever a type is declared (typed variables, typed parameters, typed function r
 - A `[...]` literal fits **any collection type except** `Dictionary` / `Map` and `Tuple`. For a typed `C<T>`, every element must fit *T*. The literal then creates that collection, with the elements added in order.
 - A `{...}` literal fits `Dictionary` / `Map`. For `Dictionary<K, T>`, every key must fit *K* and every value must fit *T*.
 - A `(...)` literal fits `Tuple`. For `Tuple<T1, ..., Tn>`, it must have exactly *n* elements and each element must fit its type.
-- The check is recursive for nested literals: `Array<Array<Number>> A = [[1, 2], [3]]` fits.
+- The check is recursive for nested literals: `Array<Array<Integer>> A = [[1, 2], [3]]` fits.
 
 ```
-Number X = 5          // fits
-Number Y = "5"        // runtime error: a String does not fit Number
-Number Z = Number("5") // fits: explicit cast
+Integer X = 5          // fits
+Integer Y = "5"        // runtime error: a String does not fit Integer
+Integer Z = Integer("5") // fits: explicit cast
+Float F = 5            // runtime error: an Integer does not fit Float
+Float G = Float(5)     // fits: explicit cast
 
-Array<Number> A = [1, 2]      // fits: both elements are Numbers
-Array<Number> B = [1, "2"]    // runtime error: "2" does not fit Number
-StaticArray<Number> S = [1, 2] // fits: creates a StaticArray<Number> of length 2
-Array C = A                   // runtime error: Array<Number> is not Array
+Array<Integer> A = [1, 2]      // fits: both elements are Integers
+Array<Integer> B = [1, "2"]    // runtime error: "2" does not fit Integer
+StaticArray<Integer> S = [1, 2] // fits: creates a StaticArray<Integer> of length 2
+Array C = A                   // runtime error: Array<Integer> is not Array
 ```
 
 ### 6.7 Type casting
 
-Values are converted **only explicitly**, by calling a type's constructor with the value: `Number("1")`, `String(X)`, `Array<Number>(S)`. Constructor names are type names, so they are case-sensitive.
+Values are converted **only explicitly**, by calling a type's constructor with the value: `Integer("1")`, `String(X)`, `Array<Integer>(S)`. Constructor names are type names, so they are case-sensitive.
 
 **Primitive constructors**
 
 | Constructor | Accepts | Result |
 |---|---|---|
-| `Number(X)` | a String in number format (optional leading `-`, digits, optionally `.` followed by digits) | that Number |
+| `Integer(X)` | a String in integer format (optional leading `-`, then digits). `Integer("2.5")` is an error | that Integer |
+| | a Float | the Float with its fractional part dropped (truncated toward zero, like Python's `int`): `Integer(2.7)` → `2`, `Integer(-2.7)` → `-2` |
 | | a Boolean | `true` → `1`, `false` → `0` |
-| | a Number | the same Number |
+| | an Integer | the same Integer |
+| `Float(X)` | a String in float format (optional leading `-`, digits, `.`, digits). `Float("2")` is an error | that Float |
+| | an Integer | the same value as a Float: `Float(2)` → `2.0` |
+| | a Boolean | `true` → `1.0`, `false` → `0.0` |
+| | a Float | the same Float |
 | `String(X)` | any value | the text of *X* as `output` would write it ([9.2](#92-output-write-values-to-standard-output)) |
 | `Boolean(X)` | a String `true` / `false` (accepted spellings per [3.1](#31-the-not-case-sensitive-rule)) | that Boolean |
 | | a Boolean | the same Boolean |
-| | a Number | `0` → `false`, any other Number → `true` |
+| | an Integer or a Float | `0` / `0.0` → `false`, any other value → `true` |
 
-Any other argument is a runtime error: `Number("abc")`, `Number([1])`, `Boolean("yes")`.
+Any other argument is a runtime error: `Integer("abc")`, `Integer([1])`, `Float("abc")`, `Boolean("yes")`.
 
-**Constructors without arguments**: `T()` returns the default value of *T* ([6.4](#64-default-values)): `Number()` → `0`, `Array<String>()` → an empty `Array<String>`.
+**Constructors without arguments**: `T()` returns the default value of *T* ([6.4](#64-default-values)): `Integer()` → `0`, `Float()` → `0.0`, `Array<String>()` → an empty `Array<String>`.
 
 **Collection constructors**
 
 - `C(B)` / `C<T>(B)`, for every collection *C* except `Dictionary` / `Map`, and for `Tuple` / `Tuple<T1, ...>`:
   - *B* may be **any built-in collection except a Dictionary** (including a Tuple).
-  - The result is a **new** object containing *B*'s elements in *B*'s natural order: array order for arrays, bottom → top for a Stack, front → back for a Queue, sorted order for a Set, Multiset and BinaryTree, element order for a Tuple. The elements themselves are not copied: non-primitive elements are shared ([6.5](#65-copying-and-sharing)).
-  - For a typed result, every element must **already** fit the element type. Elements are not converted. Otherwise it is a runtime error. `Array<Number>(["1"])` is a runtime error. Use `Number(...)` on each element instead.
+  - The result is a **new** object containing *B*'s elements in *B*'s natural order: array order for arrays, bottom → top for a Stack, front → back for a Queue, sorted order for a Set and a Multiset, element order for a Tuple. The elements themselves are not copied: non-primitive elements are shared ([6.5](#65-copying-and-sharing)).
+  - For a typed result, every element must **already** fit the element type. Elements are not converted. Otherwise it is a runtime error. `Array<Integer>(["1"])` is a runtime error. Use `Integer(...)` on each element instead.
   - For `Tuple<T1, ..., Tn>(B)`, *B* must have exactly *n* elements, each fitting its type.
 - `StaticArray(L, B)` / `StaticArray<T>(L, B)`: a static array of length *L*, filled with *B*'s elements from index 0. *B* is optional. Positions not filled by *B* hold `none` (untyped) or *T*'s default value (typed).
 - `Dictionary(B)` / `Dictionary<K, T>(B)`: *B* must be a Dictionary. For the typed form, every key must fit *K* and every value must fit *T*.
@@ -365,11 +402,11 @@ An expression is built from:
 - attribute access: `X.Y` (custom structures), which can be chained: `X.Y.Z`, `X.Y[0]`;
 - function calls: `F(A, B)` ([section 11](#11-functions-and-procedures));
 - method calls: `X.size()`, `X.push(1)` ([section 13](#13-built-in-data-structures));
-- constructor calls: `Number("1")`, `Stack([1, 2])`, `Array<Number>()`, `Point(1, 2)` ([6.7](#67-type-casting), [section 13](#13-built-in-data-structures), [section 14](#14-custom-structures)).
+- constructor calls: `Integer("1")`, `Stack([1, 2])`, `Array<Integer>()`, `Point(1, 2)` ([6.7](#67-type-casting), [section 13](#13-built-in-data-structures), [section 14](#14-custom-structures)).
 
 Calls, method calls, indexing and attribute access can all be used inside larger expressions, e.g. `Y = X.size() + F(2) * A[I][J]`.
 
-In an expression, a built-in type name immediately followed by `<` starts a type argument list (`Array<Number>(...)`), not a comparison.
+In an expression, a built-in type name immediately followed by `<` starts a type argument list (`Array<Integer>(...)`), not a comparison.
 
 ### 7.2 Operators
 
@@ -381,26 +418,76 @@ In an expression, a built-in type name immediately followed by `<` starts a type
 | `>=` | greater or equal | both of the same type |
 | `<` | less | both of the same type |
 | `<=` | less or equal | both of the same type |
-| `NOT` | logical NOT (Boolean) / bitwise NOT (Number); unary | a Boolean or a Number |
-| `AND` | logical AND (Booleans) / bitwise AND (Numbers) | two Booleans or two Numbers |
-| `OR` | logical OR (Booleans) / bitwise OR (Numbers) | two Booleans or two Numbers |
-| `XOR` | logical XOR (Booleans) / bitwise XOR (Numbers) | two Booleans or two Numbers |
-| `+` | add (Numbers) / **concatenate** (Strings) | two Numbers or two Strings |
-| `-` | subtract (binary) / negate (unary, e.g. `-X`, `-1`) | Numbers |
-| `*` | multiply | Numbers |
-| `/` | divide | Numbers |
-| `pow` | power: `A pow B` is *A* raised to the power *B* | Numbers |
-| `mod` | modulo | Numbers |
-| `div` | integer division | Numbers |
+| `NOT` | logical NOT; unary | a Boolean |
+| `AND` | logical AND | two Booleans |
+| `OR` | logical OR | two Booleans |
+| `XOR` | logical XOR | two Booleans |
+| `IMP` | logical implication: `A IMP B` is `(NOT A) OR B` | two Booleans |
+| `IFF` | logical equivalence (if and only if): `true` when both are `true` or both are `false` | two Booleans |
+| `~` | bitwise NOT; unary | an Integer |
+| `&` | bitwise AND | two Integers |
+| `\|` | bitwise OR | two Integers |
+| `^` | bitwise XOR | two Integers |
+| `==>` | bitwise implication: `A ==> B` is `(~A) \| B` | two Integers |
+| `<==>` | bitwise equivalence: `A <==> B` is `~(A ^ B)` | two Integers |
+| `<<` | shift left: `A << B` is *A* · 2<sup>*B*</sup> | two Integers |
+| `>>` | shift right: `A >> B` is *A* `div` 2<sup>*B*</sup> (rounds toward negative infinity, like Python: `-8 >> 1` is `-4`) | two Integers |
+| `+` | add (Integers, Floats) / **concatenate** (Strings) | two Integers → Integer; two Floats → Float; two Strings → String |
+| `-` | subtract (binary) / negate (unary, e.g. `-X`, `-1`) | two Integers → Integer; two Floats → Float; unary: an Integer or a Float |
+| `*` | multiply | two Integers → Integer; two Floats → Float |
+| `/` | divide | two Integers or two Floats → **always a Float**: `4 / 2` → `2.0` |
+| `pow` | power: `A pow B` is *A* raised to the power *B* | two Integers → Integer if *B* ≥ 0, a **Float** if *B* < 0 (`2 pow -1` → `0.5`); two Floats → Float |
+| `mod` | modulo | two Integers → Integer (Floats are not accepted) |
+| `div` | integer division | two Integers → **always an Integer** |
 
 Notes:
 
-- `NOT`, `AND`, `OR`, `XOR`, `mod`, `div` and `pow` are case-insensitive per [3.1](#31-the-not-case-sensitive-rule). `and`, `AND` and `And` are the same operator.
+- `NOT`, `AND`, `OR`, `XOR`, `IMP`, `IFF`, `mod`, `div` and `pow` are case-insensitive per [3.1](#31-the-not-case-sensitive-rule). `and`, `AND` and `And` are the same operator.
 - Inside an expression, `=` and `==` both mean **equality**. `=` as assignment exists only at the statement level ([8.5](#85-assignment)).
 - **No implicit casting:** operands of other types than listed are a runtime error. `"Count: " + 5` is an error. Write `"Count: " + String(5)`.
+- This includes mixing Integers and Floats: `1 + 2.5` and `2.5 div 1` are runtime errors. Write `Float(1) + 2.5`. Because `/` always gives a Float, `Integer X = 4 / 2` is a runtime error. Write `Integer X = 4 div 2` or `Integer X = Integer(4 / 2)`.
+- Logical operators work only on Booleans and bitwise operators only on Integers: `1 AND 2`, `NOT 5`, `true & false` and `1.5 & 2.5` are runtime errors.
+- `AND`, `OR` and `IMP` **short-circuit**: the right operand is not evaluated when the left one already decides the result (`false AND X`, `true OR X`, `false IMP X`). So `false AND F()` does not call `F`, and `false AND 5` is `false`, not an error. `XOR` and `IFF` always evaluate both operands.
+- `div` and `mod` round like in Python, toward negative infinity: `-7 div 2` is `-4` and `-7 mod 2` is `1`. `A = (A div B) * B + (A mod B)` always holds.
+- Division by zero (`/`, `div` and `mod`, with Integers or Floats) is a runtime error.
+- A negative shift amount (`1 << -1`) is a runtime error, like in Python.
+- A Float result that is not a finite real number is a runtime error. This covers overflow to infinity (`10.0 pow 400.0`) and results that are not real numbers (`(-8.0) pow 0.5`).
+- An Integer result that does not fit in a signed 64-bit integer (from `-9223372036854775808` to `9223372036854775807`) is a runtime error.
 - Comparing values of **different types** for equality is not an error. See [7.3](#73-equality) for exactly when two values are equal.
 - Ordering (`<`, `>`, `<=`, `>=`) between values of different types is a runtime error.
-- **Operator precedence and associativity are unspecified.** Use parentheses to make the order of evaluation explicit: `(A + B) * C`, `(X > 0) AND (Y > 0)`.
+- Inside an expression, `<-` is never assignment: it is read as `<` followed by a unary `-`. `if X<-1 then` means `if X < -1 then`.
+- Comparisons cannot be chained: `A < B < C` and `A = B = C` are errors. Write `(A < B) AND (B < C)`.
+
+#### 7.2.1 Precedence and associativity
+
+Operator precedence follows Python. From the **highest** (binds tightest) to the **lowest**:
+
+| Level | Operators | Associativity |
+|---|---|---|
+| 1 | indexing `X[I]`, attribute access `X.Y`, calls `F(...)`, method calls `X.m(...)` | left to right |
+| 2 | `pow` | **right** to left: `2 pow 3 pow 2` is `2 pow (3 pow 2)` |
+| 3 | unary `-`, `~` | — |
+| 4 | `*`, `/`, `div`, `mod` | left to right |
+| 5 | `+`, binary `-` | left to right |
+| 6 | `<<`, `>>` | left to right |
+| 7 | `&` | left to right |
+| 8 | `^` | left to right |
+| 9 | `\|` | left to right |
+| 10 | `==>` | **right** to left: `A ==> B ==> C` is `A ==> (B ==> C)` |
+| 11 | `<==>` | left to right |
+| 12 | `=`, `==`, `!=`, `<>`, `<`, `<=`, `>`, `>=` | none: comparisons cannot be chained |
+| 13 | `NOT` | — |
+| 14 | `AND` | left to right |
+| 15 | `XOR` | left to right |
+| 16 | `OR` | left to right |
+| 17 | `IMP` | **right** to left: `A IMP B IMP C` is `A IMP (B IMP C)` |
+| 18 | `IFF` | left to right |
+
+- As in Python, `pow` binds tighter than a unary `-` on its left, but its right operand may start with a unary `-`: `-2 pow 2` is `-(2 pow 2)` = `-4`, and `2.0 pow -1.0` is `0.5`.
+- The logical operators `NOT`, `AND`, `XOR`, `OR`, `IMP` and `IFF` are **below** the comparisons, so `X > 0 AND Y > 0` means `(X > 0) AND (Y > 0)`.
+- The bitwise operators `<<`, `>>`, `&`, `^`, `|`, `==>` and `<==>` are **above** the comparisons, so `A & B = 0` means `(A & B) = 0`.
+- In a type, `>>` closes two type argument lists: `Array<Array<Integer>>` is valid.
+- Parentheses always override precedence: `(A + B) * C`.
 
 ### 7.3 Equality
 
@@ -408,12 +495,12 @@ Notes:
 
 | Operands | Equal when |
 |---|---|
-| two Numbers, two Strings or two Booleans | they have the same value |
+| two Integers, two Floats, two Strings or two Booleans | they have the same value |
 | `none` and `none` | always |
-| values of different primitive types, `none` and any other value, or a primitive and a non-primitive value | never (`1 = "1"` is `false`) |
+| values of different primitive types, `none` and any other value, or a primitive and a non-primitive value | never (`1 = "1"` and `1 = 1.0` are `false`) |
 | two arrays (`LazyArray`, `StaticArray`, `DynamicArray`, in any combination) | same length and equal elements in the same order |
 | two Stacks / two Queues | equal elements in the same natural order (bottom → top / front → back) |
-| two Sets, two Multisets or two BinaryTrees | equal values in sorted order |
+| two Sets or two Multisets | equal values in sorted order |
 | two Dictionaries | the same keys, each mapped to equal values |
 | two Tuples | same length and equal elements in the same order |
 | two instances of the **same** custom structure | every attribute of one is equal to the same attribute of the other |
@@ -425,15 +512,15 @@ Notes:
 - The three array kinds count as the same kind, because they store values the same way and differ only in how their size changes.
 
 ```
-Array<Number> A = [1, 2]
+Array<Integer> A = [1, 2]
 Array B = [1, 2]
-StaticArray<Number> S = [1, 2]
-Stack<Number> K = [1, 2]
+StaticArray<Integer> S = [1, 2]
+Stack<Integer> K = [1, 2]
 
 output A = B                            // true: typed and untyped, same elements
 output A = S                            // true: LazyArray and StaticArray, same elements
 output A = K                            // false: an array and a Stack
-output Array<Number>() = Array<String>() // true: both empty
+output Array<Integer>() = Array<String>() // true: both empty
 output (1, "a") = (1, "a")              // true
 output [1, 2] = (1, 2)                  // false: an array and a Tuple
 ```
@@ -451,8 +538,8 @@ output [1, 2] = (1, 2)                  // false: an array and a Tuple
 
 - **Explicit declarations** are `const`, typed and `let` declarations, plus function, procedure and structure definitions ([12.6](#126-local-definitions)).
 - **Implicit declarations** happen when a name that is not declared is assigned to (`X = Y`), read into (`input X`) or used as a for-loop variable.
-- In every declaration, the assignment operator can be any of `=`, `:=`, `<-` ([8.5](#85-assignment)): `let X := 1`, `const C <- 2`, `Number N := 3`.
-- A variable's kind is fixed when it is declared. Kinds cannot be combined: `const Number X = 1` is an error.
+- In every declaration, the assignment operator can be any of `=`, `:=`, `<-` ([8.5](#85-assignment)): `let X := 1`, `const C <- 2`, `Integer N := 3`.
+- A variable's kind is fixed when it is declared. Kinds cannot be combined: `const Integer X = 1` is an error.
 
 ### 8.2 Untyped variables
 
@@ -516,24 +603,24 @@ T X
 ```
 
 - Declares a typed variable *X* of type *T*.
-- *T* can be `Number`, `String`, `Boolean`, any collection type (typed or untyped, [6.3](#63-untyped-and-typed-collections)), any `Tuple` type, or the name of a custom structure.
+- *T* can be `Integer`, `Float`, `String`, `Boolean`, any collection type (typed or untyped, [6.3](#63-untyped-and-typed-collections)), any `Tuple` type, or the name of a custom structure.
 - With `= Y`, the value *Y* must fit *T* ([6.6](#66-when-a-value-fits-a-type)). Without it, *X* gets the default value of *T* ([6.4](#64-default-values)).
 - Every later assignment to *X* must fit *T*, otherwise it is a runtime error. A typed variable can never hold `none`.
 - The type check applies to the variable's own value. For untyped collections it does not restrict the contents (`Array A` can hold `[1, "a"]`). For typed collections, the contents are checked by the collection itself ([6.3](#63-untyped-and-typed-collections)).
 
 ```
-Number COUNT          // COUNT = 0
+Integer COUNT          // COUNT = 0
 String NAME = "Ann"
 Boolean OK := true
-Array<Number> NUMS = [1, 2, 3]
-Dictionary<String, Number> AGES = {"Ann": 30}
-Tuple<Number, String> PAIR = (1, "one")
+Array<Integer> NUMS = [1, 2, 3]
+Dictionary<String, Integer> AGES = {"Ann": 30}
+Tuple<Integer, String> PAIR = (1, "one")
 Stack S               // an empty untyped Stack
 Point P               // a default instance of the custom structure Point
 
-COUNT = "ten"         // runtime error: a String does not fit Number
+COUNT = "ten"         // runtime error: a String does not fit Integer
 NAME = none           // runtime error: none does not fit String
-COUNT = Number("10")  // fine
+COUNT = Integer("10")  // fine
 ```
 
 ### 8.5 Assignment
@@ -597,7 +684,8 @@ For untyped and undeclared targets, the line is interpreted using the first rule
 | # | The line is... | Resulting value |
 |---|---|---|
 | 1 | quoted | a **String** with the surrounding quotes removed |
-| 2 | a number (optional leading `-`, digits, optionally `.` followed by digits) | a **Number** |
+| 2 | an integer (optional leading `-`, then digits) | an **Integer** |
+| 2a | a float (optional leading `-`, digits, `.`, digits) | a **Float** |
 | 3 | `true` or `false` (case-insensitive per [3.1](#31-the-not-case-sensitive-rule)) | a **Boolean** |
 | 4 | `none` (case-insensitive per [3.1](#31-the-not-case-sensitive-rule)) | **none** |
 | 5 | starts with `[` and ends with `]` | an untyped **LazyArray** |
@@ -616,18 +704,19 @@ Examples (input line → value stored):
 
 | Input line | Value |
 |---|---|
-| `1` | Number `1` |
-| `-2.5` | Number `-2.5` |
+| `1` | Integer `1` |
+| `-2.5` | Float `-2.5` |
+| `2.0` | Float `2.0` |
 | `"1"` | String `1` |
 | `"abc"` | String `abc` |
 | `abc` | String `abc` |
 | `\"abc\"` | String `"abc"` (not quoted, because both quotes are escaped; outputting it prints `"abc"`) |
 | `TRUE` | Boolean `true` |
 | `None` | none |
-| `[1, abc, "2"]` | LazyArray of Number `1`, String `abc`, String `2` |
+| `[1, abc, "2"]` | LazyArray of Integer `1`, String `abc`, String `2` |
 | `[[1, 2], [3]]` | LazyArray of two LazyArrays |
-| `{"a": 1, b: [2]}` | Dictionary mapping String `a` → Number `1`, String `b` → LazyArray `[2]` |
-| `(1, "x")` | Tuple of Number `1`, String `x` |
+| `{"a": 1, b: [2]}` | Dictionary mapping String `a` → Integer `1`, String `b` → LazyArray `[2]` |
+| `(1, "x")` | Tuple of Integer `1`, String `x` |
 | *(empty line)* | String `` (empty string) |
 
 #### 9.1.3 Conversion for typed variables
@@ -636,7 +725,8 @@ After [pre-processing](#911-line-pre-processing), the line is converted to the v
 
 | *T* | Accepted input | Result |
 |---|---|---|
-| `Number` | a number (rule 2 above) | Number |
+| `Integer` | an integer (rule 2 above) | Integer |
+| `Float` | a float (rule 2a above). A line in integer format (e.g. `5`) is a runtime error | Float |
 | `String` | any line | if quoted, the content without the quotes; otherwise the whole line |
 | `Boolean` | `true` / `false` (rule 3) | Boolean |
 | `Array` / `LazyArray` | `[...]` (rule 5); elements detected automatically | untyped LazyArray |
@@ -646,10 +736,10 @@ After [pre-processing](#911-line-pre-processing), the line is converted to the v
 | `Tuple` | `(...)` (rule 7); elements detected automatically | untyped Tuple |
 | `Tuple<T1, ..., Tn>` | `(...)` with exactly *n* elements, detected automatically, each fitting its type | `Tuple<T1, ..., Tn>` |
 
-- Elements are **not converted**: with `Array<String> A`, the input `[1, 2]` is a runtime error because `1` and `2` are detected as Numbers. The input `["1", "2"]` works.
-- A typed variable of any other type (`StaticArray`, `DynamicArray`, `Stack`, `Queue`, `BinaryTree`, `Set`, `Multiset`, their typed forms, or a custom structure) cannot be an input target. That is an error.
+- Elements are **not converted**: with `Array<String> A`, the input `[1, 2]` is a runtime error because `1` and `2` are detected as Integers. The input `["1", "2"]` works.
+- A typed variable of any other type (`StaticArray`, `DynamicArray`, `Stack`, `Queue`, `Set`, `Multiset`, their typed forms, or a custom structure) cannot be an input target. That is an error.
 
-Examples: with `String S`, the line `1` gives String `1`. With `Number N`, the line `abc` is a runtime error.
+Examples: with `String S`, the line `1` gives String `1`. With `Integer N`, the line `abc` is a runtime error.
 
 ### 9.2 `output`: write values to standard output
 
@@ -660,7 +750,7 @@ output X, Y, Z, ...
 - Writes the values of the expressions *X*, *Y*, *Z*, ... joined by **a single space**.
 - At least one expression is required. Each can be any expression of any type, with no casting needed.
 - Each `output` statement writes exactly **one line**.
-- The exact text format of each value type (how decimals, Booleans, `none`, collections, tuples and structure instances are printed) is unspecified, except that a String is written as its contents.
+- A String is written as its contents. A Float is always written with a decimal point, even when it is whole: `output 4 / 2` writes `2.0`. The rest of the text format (other Float details, Booleans, `none`, collections, tuples and structure instances) is unspecified.
 
 ```
 output "Sum:", A + B
@@ -730,6 +820,7 @@ end match
 ```
 
 - `match X with` opens the block. `with` is optional.
+- At least one `case` is required. A `match` without any `case` is an error.
 - Each `case Y then` branch runs when *X* is equal to *Y* (the same equality as `=`). `then` is optional.
 - Cases are checked top to bottom. Only the body of the first matching case runs. There is no fall-through.
 - `otherwise` (optional, must come after all cases) runs when no case matches.
@@ -753,7 +844,7 @@ All loops start with `loop`, may end their header with the optional keyword `do`
 
 ```
 loop I from 1 to 3 do
-    Number SQUARE = I * I   // a new SQUARE on every iteration; not a redeclaration
+    Integer SQUARE = I * I   // a new SQUARE on every iteration; not a redeclaration
     output SQUARE
 end loop
 ```
@@ -791,7 +882,7 @@ end loop
 ```
 
 - The two forms are equivalent. The keyword `for` is optional.
-- *Y* and *Z* are evaluated **once**, before the first iteration (like Python's `range`).
+- *Y* and *Z* are evaluated **once**, before the first iteration (like Python's `range`). Both must be Integers, otherwise it is a runtime error.
 - The loop variable *X* takes the values *Y*, *Y* + 1, *Y* + 2, ... up to and **including** *Z*. The step is always `1`, and the loop only counts **up**.
 - If *Y* > *Z*, the body runs zero times and *X* is left unchanged.
 - Assigning to *X* inside the body does not affect the iteration: at the start of the next iteration, *X* is set to the next value in the sequence.
@@ -799,18 +890,56 @@ end loop
 
   | *X* is... | Behaviour |
   |---|---|
-  | not declared | **implicitly** declared as a new untyped variable in the scope **containing the loop** (not in the loop body) |
+  | not declared | **implicitly** declared as a new untyped variable in the **loop body**, anew on every iteration. It does **not** exist after the loop |
   | an untyped variable | assigned the loop values |
-  | a typed variable | must be of type `Number`, otherwise it is an error |
+  | a typed variable | must be of type `Integer`, otherwise it is an error |
   | a constant | error |
 
-- *X* **still exists after the loop**. After a loop that ran at least once and finished normally, it holds the last value of the sequence.
+- If *X* was declared **before** the loop, it still exists after the loop. After a loop that ran at least once and finished normally, it holds the last value of the sequence.
+- If *X* was **not** declared before the loop, it exists only inside the loop body.
 
 ```
 loop I from 1 to 3 do
     output I       // outputs 1, 2, 3 on separate lines
 end loop
-output I           // outputs 3
+output I           // error: I does not exist here
+
+let J
+loop J from 1 to 3 do
+    output J       // outputs 1, 2, 3 on separate lines
+end loop
+output J           // outputs 3
+```
+
+#### 10.3.4 For-each loop
+
+```
+loop A in B do
+    ...
+end loop
+
+loop for A in B do
+    ...
+end loop
+```
+
+- The two forms are equivalent. The keyword `for` is optional.
+- Runs the body once for every element of *B*, with *A* set to that element.
+- *B* is evaluated **once**, before the first iteration.
+- *B* can be any array (`LazyArray`, `StaticArray`, `DynamicArray`), a `Tuple`, `Set`, `Multiset`, `Stack`, `Queue` or `Dictionary` / `Map`. For a Dictionary, *A* is set to each **key**. Any other value is a runtime error.
+- The elements are visited in the order of *B*'s iterator ([13.10](#1310-iterators)).
+- The loop is built on *B*'s iterator: it is the same as calling `B.iterator()` and then `next()` while `has_next()` is `true`. If the body changes *B*, whether the loop sees the change depends on the collection (e.g. values pushed to the end of a DynamicArray are visited). **Do not rely on this.** To change *B* in the loop, iterate over a copy: `loop for A in B.copy() do`.
+- The loop variable *A* follows the same rules as the for loop variable ([10.3.3](#1033-for-loop)), except that a typed *A* must fit every element (a runtime error otherwise). In particular, if *A* was not declared before the loop, it does not exist after it.
+
+```
+loop for X in [10, 20, 30] do
+    output X       // outputs 10, 20, 30 on separate lines
+end loop
+
+Dictionary AGES = {"Ann": 30, "Bob": 25}
+loop for NAME in AGES do
+    output NAME, AGES[NAME]
+end loop
 ```
 
 ### 10.4 `break` and `continue`
@@ -821,7 +950,7 @@ continue
 ```
 
 - `break` immediately exits the innermost enclosing loop.
-- `continue` skips the rest of the current iteration of the innermost enclosing loop and continues with the next iteration. In a for loop, that means the next value. In while and until loops, the condition is checked again.
+- `continue` skips the rest of the current iteration of the innermost enclosing loop and continues with the next iteration. In for and for-each loops, that means the next value. In while and until loops, the condition is checked again.
 - `if` and `match` are not loops. `break` and `continue` inside them act on the enclosing loop.
 - Using `break` or `continue` outside of any loop is an error.
 
@@ -872,14 +1001,14 @@ Each parameter is one of:
 | `T Y = Z` | typed, optional, default value *Z* (must fit *T*) |
 
 - The default value can be given with any assignment operator: `Y = Z`, `Y := Z`, `Y <- Z`.
-- Typed and untyped parameters can be mixed: `function F(Number A, B, String C = "x") begin`.
+- Typed and untyped parameters can be mixed: `function F(Integer A, B, String C = "x") begin`.
 - Parameters **cannot** be constants.
 - Parameters with defaults must come **after** all required parameters (defaults are given for the last *N* parameters).
 - Default values are evaluated **on every call** that does not supply that argument (not once at definition time).
 - Inside the body, parameters are variables of the function's scope: untyped parameters can be reassigned freely, and typed parameters only with values that fit their type.
 
 ```
-function Number POWER(Number BASE, Number EXP = 2) begin
+function Integer POWER(Integer BASE, Integer EXP = 2) begin
     return BASE pow EXP
 end function
 
@@ -940,7 +1069,7 @@ function String GREETING(String NAME, Boolean LOUD = false) begin
     return "Hello, " + NAME
 end function
 
-procedure SHOW_SUM(Number A, Number B) begin
+procedure SHOW_SUM(Integer A, Integer B) begin
     if (A = 0) AND (B = 0) then
         return
     end if
@@ -951,7 +1080,7 @@ X = ADD(1, 2)        // X = 3
 output GREETING("Ann") // outputs Hello, Ann
 SHOW_SUM(1, 2)       // outputs 3
 SHOW_SUM(0, 0)       // outputs nothing
-SHOW_SUM("1", 2)     // runtime error: "1" does not fit Number
+SHOW_SUM("1", 2)     // runtime error: "1" does not fit Integer
 Y = SHOW_SUM(1, 2)   // error: a procedure cannot be used in an expression
 ```
 
@@ -971,10 +1100,10 @@ Y = SHOW_SUM(1, 2)   // error: a procedure cannot be used in an expression
 The **local scopes** of a line are its current block scope plus all the enclosing block scopes up to and including the nearest function scope (or the global scope, for top-level code).
 
 ```
-Number TOTAL = 0
+Integer TOTAL = 0
 loop I from 1 to 3 do
     TOTAL = TOTAL + I      // TOTAL from the enclosing scope is local here
-    Number DOUBLE = I * 2  // exists only in this iteration
+    Integer DOUBLE = I * 2  // exists only in this iteration
     TEMP = DOUBLE          // implicitly declared in the loop body
 end loop
 output TOTAL               // outputs 6
@@ -988,6 +1117,18 @@ output TEMP                // error: TEMP does not exist here
 - Assigning to a name that exists in the local scopes assigns to that variable.
 - Assigning to a plain name that does **not** exist in the local scopes implicitly declares a new untyped variable in the current scope ([8.2](#82-untyped-variables)), even if a variable with that name exists in an outer function or the global scope. The new variable shadows it.
 - To assign to a variable of an outer function or the global scope, use `nonlocal` or `global` ([12.5](#125-global-and-nonlocal)).
+- So reading a name before assigning to it in a function reads the outer variable, and the assignment then creates a new local variable that shadows it for the rest of the call:
+
+  ```
+  X = 5
+  procedure P() begin
+      output X     // outputs 5: reads the global X
+      X = 1        // declares a new local X
+      output X     // outputs 1: reads the local X
+  end procedure
+  P()
+  output X         // outputs 5: the global X is unchanged
+  ```
 
 ### 12.4 Declarations, redeclaration and shadowing
 
@@ -1049,7 +1190,7 @@ nonlocal X, Y, ...
 - The referred variable keeps its kind: assigning to a global constant is still an error, and assigning to a global typed variable is still type-checked.
 
 ```
-Number COUNTER = 0
+Integer COUNTER = 0
 
 procedure INCREMENT() begin
     global COUNTER
@@ -1111,13 +1252,31 @@ A function, procedure or structure definition behaves like **declaring a variabl
   output APPLY(D, 4) // outputs 8
   ```
 
+- **Closures** (as in Python): a function or procedure keeps access to the variables of the scopes where it was defined, even after those scopes have ended (e.g. after the outer function has returned). It refers to the variables themselves, not to copies of their values, so it sees later changes to them:
+
+  ```
+  function MAKE_COUNTER() begin
+      let COUNT = 0
+      function NEXT() begin
+          nonlocal COUNT
+          COUNT = COUNT + 1
+          return COUNT
+      end function
+      return NEXT
+  end function
+
+  C = MAKE_COUNTER()
+  output C() // outputs 1
+  output C() // outputs 2
+  ```
+
 ## 13. Built-in data structures
 
 General rules:
 
 - Every collection has an untyped form `C` and a typed form `C<T>` (`Dictionary<K, T>` for dictionaries, `Tuple<T1, ..., Tn>` for tuples). See [6.3](#63-untyped-and-typed-collections). Every form listed in the tables below works with both.
 - A collection can be created by:
-  1. a typed declaration without a value: `Stack S`, `Stack<Number> S` (an empty collection, [8.4](#84-typed-variables));
+  1. a typed declaration without a value: `Stack S`, `Stack<Integer> S` (an empty collection, [8.4](#84-typed-variables));
   2. a **constructor** call `C(...)` / `C<T>(...)`: an expression producing a new object ([6.7](#67-type-casting)). Type names in constructors are case-sensitive;
   3. a literal: `[...]` for any collection except Dictionary and Tuple, `{...}` for a Dictionary, `(...)` for a Tuple ([section 5](#5-literals)).
 - Methods are called as `X.method(...)`. Method names are case-sensitive.
@@ -1125,6 +1284,7 @@ General rules:
 - Index-based reading and writing use `X[I]` and `X[I] = Y`. Any assignment form works (`X[I] := Y`, `X[I] <- Y`).
 - Values added to a typed collection (by assignment, `push`, `add`, `insert`, `enqueue`, ...) must fit its element type. Otherwise it is a runtime error.
 - Where an element position has no value yet (gaps in a LazyArray, initial elements of a StaticArray), it holds `none` in an untyped collection and the element type's default value ([6.4](#64-default-values)) in a typed one.
+- Every collection (13.1–13.9) has the copy methods `X.copy()` and `X.deep_copy()` ([6.5](#65-copying-and-sharing)).
 
 ### 13.1 `Array` / `LazyArray`
 
@@ -1206,27 +1366,7 @@ A first-in, first-out queue.
 | `X.enqueue(Y)` | add *Y* to the back of the queue |
 | `X.dequeue()` | take the front value out of the queue and return it |
 
-### 13.7 `BinaryTree` / `BinarySearchTree`
-
-A binary search tree.
-
-| Syntax | Meaning |
-|---|---|
-| `BinaryTree X` / `BinarySearchTree X` / `BinaryTree<T> X` / `BinarySearchTree<T> X` | declare *X* as an empty tree |
-| `BinaryTree(B)` / `BinarySearchTree(B)` / `BinaryTree<T>(B)` / `BinarySearchTree<T>(B)` | constructor with initial contents copied from collection *B*. *B* is optional |
-| `X.is_empty()` | `true` if the tree is empty |
-| `X.get_min()` | get the minimum value |
-| `X.get_max()` | get the maximum value |
-| `X.add(Y)` | add the value *Y* |
-| `X.includes(Y)` | `true` if the tree contains *Y* |
-| `X.remove_min()` | remove the minimum value |
-| `X.remove_max()` | remove the maximum value |
-| `X.remove(Y)` | remove the value *Y* |
-| `X.get_tree_by_levels()` | get the tree's values grouped by levels |
-| `X.get_tree_list()` | get the tree's values as a list (array) |
-| `X.get_tree_sorted()` | get the tree's values as a sorted list (array) |
-
-### 13.8 `Set`
+### 13.7 `Set`
 
 A set of unique values, kept in sorted order.
 
@@ -1243,7 +1383,7 @@ A set of unique values, kept in sorted order.
 
 To get the values as another collection, use a constructor ([6.7](#67-type-casting)): `Array(X)` gives the values in sorted order.
 
-### 13.9 `Multiset`
+### 13.8 `Multiset`
 
 Like `Set`, but the same value can be present more than once.
 
@@ -1260,7 +1400,7 @@ Like `Set`, but the same value can be present more than once.
 
 To get the values as another collection, use a constructor ([6.7](#67-type-casting)): `Array(X)` gives the values in sorted order.
 
-### 13.10 `Tuple`
+### 13.9 `Tuple`
 
 A fixed sequence of values. A tuple is **immutable**: its length and its elements cannot change after it is created.
 
@@ -1274,7 +1414,7 @@ A fixed sequence of values. A tuple is **immutable**: its length and its element
 | `X.size()` / `X.length()` | get the number of elements |
 
 - `X[I] = Y` is an error. A tuple has no methods that change it.
-- A typed tuple type gives a type for **every** element: `Tuple<Number, Boolean, String>` has exactly three elements.
+- A typed tuple type gives a type for **every** element: `Tuple<Integer, Boolean, String>` has exactly three elements.
 - Immutability applies to the tuple's own slots only. A non-primitive element can still change its contents:
 
   ```
@@ -1282,6 +1422,29 @@ A fixed sequence of values. A tuple is **immutable**: its length and its element
   T[0] = [3]      // error: tuples are immutable
   T[0].push(3)    // fine: changes the array stored in the tuple
   ```
+
+### 13.10 Iterators
+
+Every collection that a for-each loop can iterate over ([10.3.4](#1034-for-each-loop)) has an iterator:
+
+| Syntax | Meaning |
+|---|---|
+| `X.iterator()` | get a new iterator over collection *X* |
+| `I.has_next()` | `true` if iterator *I* has elements left |
+| `I.next()` | get the next element of iterator *I* and move forward |
+
+The iterator visits the elements in this order:
+
+| Collection | Order |
+|---|---|
+| `LazyArray`, `StaticArray`, `DynamicArray`, `Tuple` | by index, from `0` |
+| `Set`, `Multiset` | sorted order |
+| `Stack` | the order the elements were pushed (bottom → top) |
+| `Queue` | front → back |
+| `Dictionary` / `Map` | the **keys**, in sorted order |
+
+- An iterator has no type name, so it can be stored only in untyped variables.
+- Whether an iterator sees changes made to its collection after it was created depends on the collection. Do not rely on it.
 
 ## 14. Custom structures
 
@@ -1308,6 +1471,7 @@ end structure
 
 - The default value can be given with any assignment operator: `Y = Z`, `Y := Z`, `Y <- Z`.
 - There are no constant attributes.
+- `copy` and `deep_copy` cannot be attribute names, because every instance has the methods `copy()` and `deep_copy()` ([14.4](#144-copying-instances)). Using them is an error.
 - Typed attributes are type-checked on **every** assignment, including the arguments of the constructor `NAME(...)`.
 - Attributes keep the order in which they are defined. This order matters for the constructor.
 
@@ -1325,31 +1489,35 @@ end structure
 | `NAME V` | declare a typed variable *V* holding a new instance. Every attribute gets its default value, or `none` for an untyped attribute without one |
 | `NAME(A, B, C, ...)` | constructor: a new instance. *A*, *B*, *C*, ... are assigned to the attributes **in definition order**. Attributes without a given value get their default value, or `none` for an untyped attribute without one |
 
-### 14.4 Example
+### 14.4 Copying instances
+
+Every instance has `X.copy()` and `X.deep_copy()` ([6.5.1](#651-explicit-copies)).
+
+### 14.5 Example
 
 ```
 structure X has
     A
-    Number B
+    Integer B
     C = "Value"
 end structure
 
 X D
 output D.A // none
-output D.B // Number 0
+output D.B // Integer 0
 output D.C // String Value
 
 X E = X(1, 2, "Value2")
-output E.A // Number 1
-output E.B // Number 2
+output E.A // Integer 1
+output E.B // Integer 2
 output E.C // String Value2
 
 let F = X(1, 2)
-output F.A // Number 1
-output F.B // Number 2
+output F.A // Integer 1
+output F.B // Integer 2
 output F.C // String Value
 
-let G = X(1, "2") // runtime error: "2" does not fit the Number attribute B
+let G = X(1, "2") // runtime error: "2" does not fit the Integer attribute B
 ```
 
 ## 15. Errors
@@ -1361,13 +1529,13 @@ The following are errors according to this document:
 | Unknown escape sequence in a string literal | error |
 | Unknown escape sequence in an input line | runtime error |
 | A keyword written in a non-accepted case (e.g. `wHile`) where a keyword is required | error |
-| A type name written in the wrong case (e.g. `number`) | error |
+| A type name written in the wrong case (e.g. `integer`) | error |
 | Using `None` as a type | error |
 | A missing `end ...` for an opened block | error |
 | **Variables** | |
 | Explicitly declaring a name that already exists in the local scopes as an explicit variable (constant, typed, `let`, or a definition) | error |
 | `const X` without a value | error |
-| Combining `const` with a type (`const Number X = 1`) | error |
+| Combining `const` with a type (`const Integer X = 1`) | error |
 | Assigning to a constant (including `input` into a constant and using it as a for-loop variable) | error |
 | Storing a value that does not fit the declared type (typed variable, parameter, attribute, function result, typed collection element), including `none` | runtime error |
 | Assigning to an element of a Tuple | error |
@@ -1375,13 +1543,17 @@ The following are errors according to this document:
 | `input X` where *X* is typed with a type that cannot be read ([9.1.3](#913-conversion-for-typed-variables)) | error |
 | An input line that cannot be converted to the target variable's type | runtime error |
 | **Expressions** | |
-| Operands of the wrong types for an operator (e.g. `"a" + 1`) | runtime error |
+| Operands of the wrong types for an operator (e.g. `"a" + 1`, `1 + 2.5`) | runtime error |
+| Division by zero, Integer overflow, a Float result that is not a finite real number | runtime error |
+| Chained comparisons (e.g. `A < B < C`) | error |
 | Ordering comparison (`<`, `>`, `<=`, `>=`) of values of different types | runtime error |
-| A failed cast (e.g. `Number("abc")`, `Array<Number>(["1"])`) | runtime error |
+| A failed cast (e.g. `Integer("abc")`, `Array<Integer>(["1"])`) | runtime error |
 | A condition (`if`, `else if`, `loop while`, `loop until`) that is not a Boolean | runtime error |
 | **Control flow** | |
 | `break` or `continue` outside a loop | error |
-| A for-loop variable that is typed with a type other than `Number` | error |
+| A `match` without any `case` | error |
+| A for-each loop over a value that cannot be iterated | runtime error |
+| A for-loop variable that is typed with a type other than `Integer` | error |
 | **Functions and procedures** | |
 | `return` outside a function or procedure | error |
 | Bare `return` in a function | error |
@@ -1391,6 +1563,8 @@ The following are errors according to this document:
 | A procedure call used inside an expression | error |
 | A call with fewer arguments than required parameters or more than total parameters | error |
 | A constant parameter | error |
+| **Custom structures** | |
+| An attribute named `copy` or `deep_copy` | error |
 | Calling a function, procedure or structure before its definition has executed | error |
 
 ## 16. Unspecified behaviour
@@ -1398,43 +1572,34 @@ The following are errors according to this document:
 The following are intentionally not defined by this document:
 
 **Expressions and operators**
-- Operator precedence and associativity.
-- Whether `div` and `mod` round toward zero or toward negative infinity for negative operands.
-- Which values of the same type can be ordered with `<`, `>`, `<=`, `>=` other than Numbers (e.g. Strings, collections).
+- Which values of the same type can be ordered with `<`, `>`, `<=`, `>=` other than Integers and Floats (e.g. Strings, collections).
 - Equality of functions, procedures and structure definitions.
-- Which values can be used as dictionary keys, and how values are ordered in `Set`, `Multiset` and `BinaryTree` (especially values of different types in untyped ones).
+- Which values can be used as dictionary keys, and how values are ordered in `Set`, `Multiset` and when iterating over Dictionary keys (especially values of different types in untyped ones).
 
 **Statements**
 - A statement with more than one top-level assignment operator (e.g. `X = Y = 1`).
 - Whether a bare expression that is not a call (e.g. `1 + 2`) can be a statement.
 - Whether `input` accepts targets other than a plain variable (e.g. `input A[0]`).
-- The exact text format produced by `output` (and therefore by `String(X)`) for Numbers (especially decimals), Booleans, `none`, collections, tuples and structure instances.
+- The exact text format produced by `output` (and therefore by `String(X)`) for Integers, Floats (beyond always having a decimal point), Booleans, `none`, collections, tuples and structure instances.
 - Behaviour when standard input has no more lines.
 - Malformed collections in input (e.g. a dictionary element without `:`), and whether `(X)` without a comma in input is a one-element Tuple or a String.
 
-**Names**
-- Whether built-in type names (`Number`, `Stack`, ...) can be used as identifiers.
-- Whether non-accepted spellings of keywords (e.g. `wHile`) can be used as identifiers.
-
 **Control flow**
-- A `match` block with no `case` branches.
-- For-loop bounds that are not whole numbers, or are not Numbers.
+- What a for-each loop does when *B* is changed while it iterates over it ([10.3.4](#1034-for-each-loop)).
 
 **Functions, procedures and scopes**
 - Where in a body `global` / `nonlocal` may appear, and whether they affect the whole body or only the lines after them.
 - `global` / `nonlocal` at the top level, or for a name already declared in the local scopes.
 - `nonlocal X` when no enclosing function or procedure scope has *X*. `global X` when the global *X* does not exist yet.
-- Whether a function defined inside another function keeps access to the outer function's variables after the outer function has returned (closures).
-- Reading a name in a function before implicitly declaring it locally, when an outer variable of the same name exists.
 
 **Data structures**
 - Reading a LazyArray at an index beyond its length, or using negative indexes.
 - Out-of-range indexes on `StaticArray`, `DynamicArray`, `Set`, `Multiset` and `Tuple`.
 - Reading a missing key from a Dictionary.
-- `pop`, `dequeue`, `get_min`, `get_max`, `remove_min`, `remove_max` or `remove` on an empty or non-matching structure.
+- `next()` on an iterator with no elements left.
+- `pop`, `dequeue` or `remove` on an empty or non-matching structure.
 - Whether `DynamicArray.pop()` / `remove(I)` return the removed value.
 - `StaticArray(L, B)` when *B* has more than *L* elements.
-- How `BinaryTree` handles duplicate values, and the exact shape and order of `get_tree_by_levels()` and `get_tree_list()`, including the types of the arrays they return.
 
 **Custom structures**
 - When attribute default values are evaluated.
@@ -1448,7 +1613,7 @@ Conventions:
 - Terminals are in double quotes. `[ ... ]` means optional, `{ ... }` means zero or more, `|` means alternatives.
 - Keyword terminals (e.g. `"if"`) match case-insensitively per [3.1](#31-the-not-case-sensitive-rule). Type names and method names match exactly.
 - `NL` is the end of a line. Blank lines and comment-only lines are ignored. A comment may follow any statement.
-- Operator precedence is not expressed (it is unspecified).
+- Operator precedence is not expressed here (see [7.2.1](#721-precedence-and-associativity)).
 
 ```ebnf
 program        = block ;
@@ -1485,7 +1650,8 @@ match          = "match" expr [ "with" ] NL
 loop           = "loop" loop_head [ "do" ] NL block "end" "loop" ;
 loop_head      = "while" expr
                | "until" expr
-               | [ "for" ] identifier "from" expr "to" expr ;
+               | [ "for" ] identifier "from" expr "to" expr
+               | [ "for" ] identifier "in" expr ;
 break          = "break" ;
 continue       = "continue" ;
 
@@ -1505,25 +1671,26 @@ structure_def  = "structure" identifier [ "has" ] NL { attribute NL } "end" "str
 attribute      = [ type ] identifier [ assign_op expr ] ;
 
 (* types *)
-type           = "Number" | "String" | "Boolean"
+type           = "Integer" | "Float" | "String" | "Boolean"
                | collection [ "<" type ">" ]
                | ( "Dictionary" | "Map" ) [ "<" type "," type ">" ]
                | "Tuple" [ "<" type { "," type } ">" ]
                | identifier ;                    (* a custom structure name *)
 collection     = "Array" | "LazyArray" | "StaticArray" | "DynamicArray"
-               | "Stack" | "Queue" | "BinaryTree" | "BinarySearchTree"
+               | "Stack" | "Queue"
                | "Set" | "Multiset" ;
 
 (* expressions *)
 expr           = unary_op expr
                | expr binary_op expr
                | postfix ;
-unary_op       = "-" | "NOT" ;
+unary_op       = "-" | "~" | "NOT" ;
 binary_op      = "=" | "==" | "!=" | "<>" | ">" | ">=" | "<" | "<="
-               | "AND" | "OR" | "XOR"
+               | "AND" | "OR" | "XOR" | "IMP" | "IFF"
+               | "&" | "|" | "^" | "==>" | "<==>" | "<<" | ">>"
                | "+" | "-" | "*" | "/" | "mod" | "div" | "pow" ;
 postfix        = primary { "[" expr "]" | "." identifier | "(" [ arguments ] ")" } ;
-primary        = number | string | boolean | none
+primary        = integer | float | string | boolean | none
                | array_literal | dict_literal | tuple_literal
                | identifier | type               (* a type is used as a constructor *)
                | "(" expr ")" ;
@@ -1536,7 +1703,8 @@ tuple_literal  = "(" ")"
 
 (* lexical *)
 identifier     = ( letter | "_" ) { letter | digit | "_" } ;   (* not a reserved word *)
-number         = digit { digit } [ "." digit { digit } ] ;
+integer        = digit { digit } ;
+float          = digit { digit } "." digit { digit } ;
 string         = '"' { character | escape } '"' ;
 escape         = '\"' | "\\" | "\n" | "\t" ;
 boolean        = "true" | "false" ;
@@ -1558,14 +1726,23 @@ V2 keeps V1's overall syntax, with these fixes, clarifications, changes and exte
 - The exact case-insensitivity rule ([section 3](#3-case-sensitivity)). Type names and method names are case-sensitive.
 - One statement per line. `;` is not a separator.
 - 0-based indexing, chained indexing and attribute access, and calls inside expressions.
-- Primitive values (Number, String, Boolean) are copied. Everything else is shared by reference.
-- `+` concatenates Strings. `NOT`/`AND`/`OR`/`XOR` are logical on Booleans and bitwise on Numbers. Unary minus exists.
+- Primitive values (Integer, Float, String, Boolean) are copied. Everything else is shared by reference.
+- `+` concatenates Strings. Unary minus exists.
 - Identifier rules and reserved words.
 - For-loop bounds are evaluated once, the loop counts up only, and the loop variable survives the loop.
 - Functions must return a value and can be used in expressions. Procedures can only use a bare `return` and cannot be used in expressions.
 - Functions, procedures and structures can be defined in any block, are locally scoped, are not hoisted, and are first-class values.
 
 **Changes**
+- **`Number` is replaced by two types: `Integer` and `Float`.** They are never mixed or converted implicitly. `/` always gives a Float, `div` and `mod` take and give Integers.
+- **Logical and bitwise operators are separate:** `NOT`/`AND`/`OR`/`XOR`/`IMP`/`IFF` work on Booleans only, `~`/`&`/`|`/`^`/`==>`/`<==>`/`<<`/`>>` on Integers only. `AND`, `OR` and `IMP` short-circuit.
+- **Removed** `BinaryTree` / `BinarySearchTree`.
+- `match` requires at least one `case`.
+- A for loop variable that was not declared before the loop exists only inside the loop body (V1 deleted it after the loop).
+- Operator precedence is defined and follows Python ([7.2.1](#721-precedence-and-associativity)).
+- Non-accepted spellings of keywords (e.g. `wHile`) can be used as identifiers. Built-in type names are reserved.
+- The character `#` is not allowed in programs (outside strings and comments).
+- Functions and procedures are closures ([12.7](#127-definitions-are-values)).
 - **Block scopes:** each block body creates its own scope (V1: logical blocks have no scope of their own).
 - **Removed** the `Y -> X` assignment form. Assignment operators are `=`, `:=`, `<-`.
 - **Removed** `create T X`. Use a typed declaration `T X` instead.
@@ -1579,13 +1756,16 @@ V2 keeps V1's overall syntax, with these fixes, clarifications, changes and exte
 - Four kinds of variables: constants (`const X = Y`), typed (`T X = Y`, `T X`), explicit untyped (`let X = Y`, `let X`) and implicit untyped (assignment before declaration, `X = Y`). Only implicit untyped variables can be redeclared.
 - Typed collections `C<T>`, `Dictionary<K, T>`, alongside the untyped forms.
 - `Tuple` and `Tuple<T1, ..., Tn>`, with the literal `(X, Y, ...)`.
-- Explicit type casting through constructors: `Number(X)`, `String(X)`, `Boolean(X)`, `Array<T>(B)`, ...
+- Explicit type casting through constructors: `Integer(X)`, `Float(X)`, `String(X)`, `Boolean(X)`, `Array<T>(B)`, ...
 - Typed function parameters and return types: `function T NAME(T1 A, T2 B) begin`.
 - `==` is accepted as equality in expressions, alongside `=`.
 - `pow` power operator: `A pow B`.
 - Optional header keywords: `do` for loops, `begin` for functions and procedures, `has` for structures, plus the existing `then` and `with`. All are recommended.
 - `break` and `continue`.
+- Methods `copy()` (shallow) and `deep_copy()` (recursive, like Python's `deepcopy`) for collections and structure instances.
+- Bitwise shifts `<<` and `>>`.
+- For-each loop `loop for A in B do` over arrays, tuples, sets, multisets, stacks, queues and dictionary keys, with iterators `X.iterator()`, `I.has_next()`, `I.next()`.
 - `global` and `nonlocal` declarations.
 - Default parameter values.
 - String escape sequences `\"`, `\\`, `\n`, `\t`.
-- `input` automatically detects Numbers, Booleans, `none`, `[...]`, `{...}`, `(...)` and quoted strings, and processes escapes.
+- `input` automatically detects Integers, Floats, Booleans, `none`, `[...]`, `{...}`, `(...)` and quoted strings, and processes escapes.

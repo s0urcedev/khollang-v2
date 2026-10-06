@@ -79,7 +79,7 @@ enum TokenKind {
 
 ### 3.3 Desugaring
 
-The lexer rewrites `match`, `until`, for and for-each loops into `if` and `while` lines. The parser and the executor only know `if` and `while`.
+The lexer rewrites `match`, `until`, for and for-each loops into `if` and `while` lines. The parser and the executor only know `if` and `while`. It also rewrites index and attribute access into `get` and `set` method calls ([3.3.5](#335-index-and-attribute-access)).
 
 To keep the order of evaluation correct, every expression that the lexer copies from the source into a generated line is wrapped in parentheses.
 
@@ -141,6 +141,23 @@ end loop              ──▶         A = #ITERATOR{N}.next()
 - *A* is set inside the body, with the same consequences as for the for loop.
 - `iterator()`, `has_next()` and `next()` are implemented by the interpreter for every iterable collection ([5.3](#53-iterators)).
 
+#### 3.3.5 Index and attribute access
+
+```
+X[I]        ──▶  X.get(I)          X[I] = Y   ──▶  X.set(I, Y)
+X.Z         ──▶  X.get(Z)          X.Z = Y    ──▶  X.set(Z, Y)
+```
+
+This is done for every line, before the block desugaring above, so the expressions that the block desugaring copies are already rewritten. The parser and the executor know only method calls, never `X[I]` or `X.Z` ([syntax 7.4](syntax.md#74-index-and-attribute-access)).
+
+- A `[` is an **index** when the token before it can end an operand: an identifier, a literal, `)`, `]` or `}`. After anything else (an operator, a keyword, `(`, `,`, `=`, ...) it starts an array literal.
+- The content of an index is exactly one expression ([3.4](#34-validation)).
+- A `.` must be followed by an identifier. If that identifier is followed by `(`, it is a **method call** and stays as it is. Otherwise it is an **attribute**, and the identifier stays an identifier token in `X.get(Z)`. It is a name used literally, and the executor must not evaluate it as a variable.
+- A line is an **assignment** if it does not start with a keyword, a built-in type or two identifiers (`Point P = ...`), it is not an attribute line of a `structure`, and it has an `=`, `:=` or `<-` outside brackets ([4.3](#43-assignment-and--)). If its target ends with an index or an attribute, the last step becomes `set`, with the value as the last argument: `A[1][2] = 3` is `A.get(1).set(2, 3)`.
+- The target before its last step must be a chain of operands and steps: identifiers, literals, brackets and `.`. Any other token at the top level (an operator, a type, a keyword) is an error ("invalid assignment target"), because `1 + A[0] = 3` would otherwise become the expression `1 + A.set(0, 3)`.
+- An assignment target that does not end with an index or an attribute is left for the parser.
+- Generated tokens take the column of the token they replace or follow: `[`, `]`, `.` or the assignment operator.
+
 ### 3.4 Validation
 
 Desugaring would hide some structural mistakes (`end if` closing a `match` would silently be accepted), so the lexer checks everything it can before the parser runs. It keeps a stack of the open blocks (`if`, `match`, `loop`, `function`, `procedure`, `structure`) and reports:
@@ -150,7 +167,7 @@ Desugaring would hide some structural mistakes (`end if` closing a `match` would
 - a line between `match` and its first `case`, a `match` without any `case`, a `case` after `otherwise`, a second `otherwise`;
 - anything after `end ...`, `else` or `otherwise` on the same line.
 
-Wherever the syntax expects a **variable name** (the loop variable), the lexer requires exactly one identifier. Wherever it expects an **expression** (`if`, `else if`, `loop while`, `loop until`, `match`, `case`, the bounds of a for loop, the collection of a for-each loop), it requires exactly one expression: not empty, no header keyword inside, and no top-level `,`. A top-level `,` would turn the expression into a tuple once it is wrapped in parentheses. Commas inside brackets and inside the type arguments of a built-in type (`Dictionary<K, V>`) are not top-level.
+Wherever the syntax expects a **variable name** (the loop variable), the lexer requires exactly one identifier. Wherever it expects an **expression** (`if`, `else if`, `loop while`, `loop until`, `match`, `case`, the bounds of a for loop, the collection of a for-each loop), it requires exactly one expression: not empty, no header keyword inside, and no top-level `,`. The same holds for the content of an index and for the value of an assignment to an index or an attribute (it becomes an argument of `set`). A top-level `,` would turn the expression into a tuple once it is wrapped in parentheses. Commas inside brackets and inside the type arguments of a built-in type (`Dictionary<K, V>`) are not top-level.
 
 Where the optional header keywords are expected, the lexer drops them:
 
@@ -185,12 +202,12 @@ enum StatementKind {
     Structure { name: Name, attributes: Vec<Parameter> },
 
     // instructions
-    Assign { target: Target, value: Expression },
+    Assign { target: Name, value: Expression },
     Input(Name),
     Output(Vec<Expression>),
     Global(Vec<Name>),
     Nonlocal(Vec<Name>),
-    Execute(Expression),          // a call statement
+    Execute(Expression),          // an expression statement: evaluated, the value is discarded
     Break,
     Continue,
     Return(Option<Expression>),
@@ -203,11 +220,8 @@ enum StatementKind {
 // a function/procedure parameter or a structure attribute: [type] name [= default]
 struct Parameter { ty: Option<Type>, name: Name, default: Option<Expression> }
 
-enum Target {
-    Variable(Name),
-    Index(Expression, Expression),       // A[I] = ...
-    Attribute(Expression, Name),         // P.X = ...
-}
+// a variable or attribute name
+type Name = String;
 
 enum Expression {
     Integer(i64), Float(f64), String(String), Boolean(bool), None,
@@ -217,10 +231,8 @@ enum Expression {
     Variable(Name),
     Unary(UnaryOperator, Box<Expression>),
     Binary(BinaryOperator, Box<Expression>, Box<Expression>),
-    Index(Box<Expression>, Box<Expression>),
-    Attribute(Box<Expression>, Name),
     Call(Box<Expression>, Vec<Expression>),
-    MethodCall(Box<Expression>, Name, Vec<Expression>),
+    MethodCall(Box<Expression>, Name, Vec<Expression>),   // includes `get` and `set` ([3.3.5](#335-index-and-attribute-access))
     Construct(Type, Vec<Expression>),             // Integer("1"), Array<Integer>(B)
 }
 
@@ -234,21 +246,25 @@ enum BinaryOperator {
     Add, Subtract, Multiply, Divide, IntegerDivide, Modulo, Power,
 }
 
+// one variant per actual kind: `Array` is a `LazyArray`
+enum CollectionKind { LazyArray, StaticArray, DynamicArray, Stack, Queue, Set, Multiset }
+
 enum Type {
     Integer, Float, String, Boolean,
     Collection(CollectionKind, Option<Box<Type>>),             // Array, Array<T>, Stack<T>, ...
-    Dictionary(Option<(Box<Type>, Box<Type>)>),
+    Dictionary(Option<(Box<Type>, Box<Type>)>),                // Dictionary and Map
     Tuple(Option<Vec<Type>>),
     Structure(Name),                                           // a custom structure
 }
 ```
 
+- Aliases are resolved by the parser: `Array` and `LazyArray` are `CollectionKind::LazyArray`, `Dictionary` and `Map` are `Type::Dictionary`.
 - A definition (`Function`, `Procedure`, `Structure`) declares a variable with its name ([syntax 12.6](syntax.md#126-local-definitions)), so the name is part of the node.
 - `Condition` covers `if` and the desugared `match`. `Loop` covers `while` and the desugared `until`, for and for-each loops.
 
 ### 4.2 Expressions
 
-- Precedence and associativity follow [syntax 7.2.1](syntax.md#721-precedence-and-associativity) (Python-like). Logical operators are below the comparisons and bitwise operators are above them.
+- Precedence and associativity follow [syntax 7.2.1](syntax.md#721-precedence-and-associativity) (Python-like). The binary logical operators are below the comparisons and the bitwise operators are above them. `NOT` is a unary operator at the same level as `-` and `~`, so `NOT A = B` is `(NOT A) = B`.
 - Comparisons are non-associative: `A < B < C` is a parse error.
 - `IMP` and `IFF` are below `OR`: `... > OR > IMP > IFF`. `IMP` and `==>` are right-associative, `IFF` and `<==>` are left-associative.
 - Every operator, including `XOR`, `IMP`, `IFF`, `^`, `==>` and `<==>`, is its own node in the tree. Nothing is rewritten into other operators, so each operand is evaluated at most once and every operator checks its own operand types.
@@ -257,7 +273,8 @@ enum Type {
 
 ### 4.3 Assignment and `<-`
 
-- Assignment exists only at the statement level. The **first** assignment operator (`=`, `:=`, `<-`) outside any brackets splits the statement into target and value.
+- Assignment exists only at the statement level. The **first** assignment operator (`=`, `:=`, `<-`) outside any brackets splits the statement into target and value. The target is a plain variable name: the lexer has already rewritten assignments to indexes and attributes into `set` calls ([3.3.5](#335-index-and-attribute-access)). Any other target is a syntax error.
+- A statement that is not an assignment, a declaration or a keyword statement is an expression statement.
 - Inside an expression, assignment is never possible:
   - `=` means equality;
   - `<-` is read as `<` followed by a unary `-`;
@@ -280,8 +297,9 @@ The lexer and the parser report these errors before execution starts:
 - `break` or `continue` outside a loop;
 - `return` outside a function or procedure, a bare `return` in a function, `return EXPR` in a procedure;
 - a function whose body contains no `return EXPR`;
+- the checks above are per **context**. Only a function or procedure starts a new context. `if` and loops do not. So a `break` in a function that is defined inside a loop is outside a loop, the `return` in a nested function or procedure belongs to that one, and a `return EXPR` in a nested definition does not count for the enclosing function;
 - parameters with defaults before required parameters, constant parameters;
-- a structure attribute named `copy` or `deep_copy`.
+- a structure attribute named `copy`, `deep_copy`, `get` or `set`.
 
 Everything else (types, redeclarations, procedure calls inside expressions, wrong argument counts, ...) depends on runtime values, so it is a runtime error. Functions and procedures are values, so the parser cannot know what a call refers to.
 

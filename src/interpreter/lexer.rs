@@ -3,7 +3,8 @@
 //! Two passes:
 //! 1. [`scan`] turns every source line into normalised tokens.
 //! 2. [`desugar`] validates the block structure and the headers, drops the optional
-//!    header keywords and rewrites `match`, `until`, for and for-each into `if` / `while`.
+//!    header keywords, rewrites index and attribute access into `get` / `set` calls and
+//!    rewrites `match`, `until`, for and for-each into `if` / `while`.
 
 use super::error::Error;
 use super::token::{BuiltinType, Keyword, Line, Symbol, Token, TokenKind};
@@ -587,7 +588,18 @@ struct Desugarer {
 }
 
 impl Desugarer {
-    fn line(&mut self, line: &Line) -> Result<(), Error> {
+    fn line(&mut self, source: &Line) -> Result<(), Error> {
+        let in_structure = matches!(
+            self.open.last(),
+            Some(OpenBlock {
+                kind: BlockKind::Structure,
+                ..
+            })
+        );
+        let line = &Line {
+            number: source.number,
+            tokens: desugar_access(&source.tokens, source.number, in_structure)?,
+        };
         let number = line.number;
         let first = &line.tokens[0];
         let rest = &line.tokens[1..];
@@ -1102,7 +1114,8 @@ impl Desugarer {
     }
 }
 
-// Generated tokens take the column of the first token of the source line.
+// Generated tokens take the column of the first token of the source line. Inside a line,
+// they take the column of the source token they replace or follow (`[`, `]`, `.`, `=`).
 
 fn keyword_token(keyword: Keyword, at: &Token) -> Token {
     Token {
@@ -1133,6 +1146,250 @@ fn parenthesised(tokens: &[Token], at: &Token) -> Vec<Token> {
     wrapped.extend_from_slice(tokens);
     wrapped.push(symbol_token(Symbol::RightParen, at));
     wrapped
+}
+
+// ---------------------------------------------------------------------------
+// Index and attribute access
+// ---------------------------------------------------------------------------
+
+fn is_symbol(token: &Token, symbol: Symbol) -> bool {
+    token.kind == TokenKind::Symbol(symbol)
+}
+
+fn is_opening(token: &Token) -> bool {
+    matches!(
+        token.kind,
+        TokenKind::Symbol(Symbol::LeftParen | Symbol::LeftBracket | Symbol::LeftBrace)
+    )
+}
+
+fn is_closing(token: &Token) -> bool {
+    matches!(
+        token.kind,
+        TokenKind::Symbol(Symbol::RightParen | Symbol::RightBracket | Symbol::RightBrace)
+    )
+}
+
+/// Whether `token` can be the last token of an operand. A `[` after it is an index, after
+/// anything else it starts a collection literal.
+fn ends_operand(token: &Token) -> bool {
+    is_closing(token)
+        || matches!(
+            token.kind,
+            TokenKind::Identifier(_)
+                | TokenKind::Integer(_)
+                | TokenKind::Float(_)
+                | TokenKind::String(_)
+                | TokenKind::Boolean(_)
+                | TokenKind::None
+        )
+}
+
+/// The position of the bracket that closes the one at `open`. The brackets of `tokens` are
+/// balanced, because the scanner has checked them on the whole line.
+fn matching_close(tokens: &[Token], open: usize) -> usize {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(open) {
+        if is_opening(token) {
+            depth += 1;
+        } else if is_closing(token) {
+            depth -= 1;
+            if depth == 0 {
+                return index;
+            }
+        }
+    }
+    unreachable!("the brackets of a line are balanced")
+}
+
+/// The position of the bracket that opens the one at `close`.
+fn matching_open(tokens: &[Token], close: usize) -> usize {
+    let mut depth = 0usize;
+    for index in (0..=close).rev() {
+        if is_closing(&tokens[index]) {
+            depth += 1;
+        } else if is_opening(&tokens[index]) {
+            depth -= 1;
+            if depth == 0 {
+                return index;
+            }
+        }
+    }
+    unreachable!("the brackets of a line are balanced")
+}
+
+/// The position of the first `=`, `:=` or `<-` outside any brackets, if the line is an
+/// assignment statement. Lines that start with a keyword or a type (declarations, `output`,
+/// ...), lines that start with a custom structure type (`Point P = ...`) and the attribute
+/// lines of a structure are not assignments.
+fn find_assignment(tokens: &[Token], in_structure: bool) -> Option<usize> {
+    if in_structure {
+        return None;
+    }
+    match (&tokens[0].kind, tokens.get(1).map(|token| &token.kind)) {
+        (TokenKind::Keyword(_) | TokenKind::Type(_), _) => return None,
+        (TokenKind::Identifier(_), Some(TokenKind::Identifier(_))) => return None,
+        _ => {}
+    }
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate() {
+        if is_opening(token) {
+            depth += 1;
+        } else if is_closing(token) {
+            depth -= 1;
+        } else if depth == 0
+            && matches!(
+                token.kind,
+                TokenKind::Symbol(Symbol::Equal | Symbol::ColonEqual | Symbol::LeftArrow)
+            )
+        {
+            return Some(index);
+        }
+    }
+    None
+}
+
+/// Rewrites index and attribute access into `get` and `set` method calls
+/// ([design 3.3.5](../../.claude/docs/design.md)):
+///
+/// ```text
+/// X[I]      ──▶  X.get(I)          X[I] = Y   ──▶  X.set(I, Y)
+/// X.Z       ──▶  X.get(Z)          X.Z = Y    ──▶  X.set(Z, Y)
+/// ```
+///
+/// `Z` is a name used literally, so it stays an identifier token. `X.Z(...)` is a method call
+/// and is left alone.
+fn desugar_access(tokens: &[Token], line: usize, in_structure: bool) -> Result<Vec<Token>, Error> {
+    match find_assignment(tokens, in_structure) {
+        Some(at) => desugar_assignment(tokens, at, line),
+        None => desugar_access_in(tokens, line),
+    }
+}
+
+/// The last step of an assignment target: `[I]` or `.Z`.
+enum Step<'a> {
+    Index { open: &'a Token, inner: &'a [Token] },
+    Attribute { dot: &'a Token, name: &'a Token },
+}
+
+fn desugar_assignment(tokens: &[Token], at: usize, line: usize) -> Result<Vec<Token>, Error> {
+    let target = &tokens[..at];
+    let operator = &tokens[at];
+    let value = &tokens[at + 1..];
+
+    // The step that `.set` takes over, and what comes before it.
+    let split = match target {
+        [.., dot, name]
+            if is_symbol(dot, Symbol::Dot) && matches!(name.kind, TokenKind::Identifier(_)) =>
+        {
+            let base = &target[..target.len() - 2];
+            Some((base, Step::Attribute { dot, name }))
+        }
+        [.., last] if is_symbol(last, Symbol::RightBracket) => {
+            let open = matching_open(target, target.len() - 1);
+            let is_index = open > 0 && ends_operand(&target[open - 1]);
+            is_index.then(|| {
+                let step = Step::Index {
+                    open: &target[open],
+                    inner: &target[open + 1..target.len() - 1],
+                };
+                (&target[..open], step)
+            })
+        }
+        _ => None,
+    };
+    let Some((base, step)) = split.filter(|(base, _)| !base.is_empty()) else {
+        // A plain variable, or something the parser rejects as a target.
+        let mut tokens = desugar_access_in(target, line)?;
+        tokens.push(operator.clone());
+        tokens.extend(desugar_access_in(value, line)?);
+        return Ok(tokens);
+    };
+
+    expect_target_base(base, line)?;
+    expect_expression(value, operator, line, "the assignment operator")?;
+
+    let mut out = desugar_access_in(base, line)?;
+    let at_step = match &step {
+        Step::Index { open, .. } => *open,
+        Step::Attribute { dot, .. } => *dot,
+    };
+    out.push(symbol_token(Symbol::Dot, at_step));
+    out.push(identifier_token("set", at_step));
+    out.push(symbol_token(Symbol::LeftParen, at_step));
+    match step {
+        Step::Index { open, inner } => {
+            expect_expression(inner, open, line, "`[`")?;
+            out.extend(desugar_access_in(inner, line)?);
+        }
+        Step::Attribute { name, .. } => out.push(name.clone()),
+    }
+    out.push(symbol_token(Symbol::Comma, operator));
+    out.extend(desugar_access_in(value, line)?);
+    out.push(symbol_token(Symbol::RightParen, operator));
+    Ok(out)
+}
+
+/// The part of an assignment target before its last step must be a chain of operands and
+/// steps: `A`, `A.B`, `A[0]`, `F(1)[2]`, `(A)[0]`. Without this, `1 + A[0] = 3` would turn
+/// into the expression statement `1 + A.set(0, 3)`.
+fn expect_target_base(base: &[Token], line: usize) -> Result<(), Error> {
+    let mut depth = 0usize;
+    for token in base {
+        if is_opening(token) {
+            depth += 1;
+        } else if is_closing(token) {
+            depth -= 1;
+        } else if depth == 0 && !(ends_operand(token) || is_symbol(token, Symbol::Dot)) {
+            return Err(error_at(line, token, "invalid assignment target"));
+        }
+    }
+    Ok(())
+}
+
+/// Rewrites every `[...]` index and every `.name` that is not a method call.
+fn desugar_access_in(tokens: &[Token], line: usize) -> Result<Vec<Token>, Error> {
+    let mut out = Vec::with_capacity(tokens.len());
+    let mut index = 0;
+    while index < tokens.len() {
+        let token = &tokens[index];
+        if is_symbol(token, Symbol::LeftBracket) && index > 0 && ends_operand(&tokens[index - 1]) {
+            let close = matching_close(tokens, index);
+            let inner = &tokens[index + 1..close];
+            expect_expression(inner, token, line, "`[`")?;
+            out.push(symbol_token(Symbol::Dot, token));
+            out.push(identifier_token("get", token));
+            out.push(symbol_token(Symbol::LeftParen, token));
+            out.extend(desugar_access_in(inner, line)?);
+            out.push(symbol_token(Symbol::RightParen, &tokens[close]));
+            index = close + 1;
+        } else if is_symbol(token, Symbol::Dot) {
+            let Some(name) = tokens
+                .get(index + 1)
+                .filter(|name| matches!(name.kind, TokenKind::Identifier(_)))
+            else {
+                let at = tokens.get(index + 1).unwrap_or(token);
+                return Err(error_at(line, at, "expected a name after `.`"));
+            };
+            out.push(token.clone());
+            let is_call = tokens
+                .get(index + 2)
+                .is_some_and(|next| is_symbol(next, Symbol::LeftParen));
+            if is_call {
+                out.push(name.clone());
+            } else {
+                out.push(identifier_token("get", token));
+                out.push(symbol_token(Symbol::LeftParen, token));
+                out.push(name.clone());
+                out.push(symbol_token(Symbol::RightParen, name));
+            }
+            index += 2;
+        } else {
+            out.push(token.clone());
+            index += 1;
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -2625,5 +2882,155 @@ end procedure";
         // rejects it, and the block it was meant to close stays open
         assert_eq!(show("eNd if"), ["1: eNd if"]);
         assert_error("if X\neNd if", 1, "missing `end if`");
+    }
+
+    // ----- index and attribute access -----
+
+    fn one(source: &str) -> String {
+        let lines = show(source);
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        lines[0].split_once(": ").unwrap().1.to_string()
+    }
+
+    #[test]
+    fn index_becomes_get() {
+        assert_eq!(one("X[0]"), "X . get ( 0 )");
+        assert_eq!(one("Y = X[I + 1]"), "Y = X . get ( I + 1 )");
+        assert_eq!(one("X[1][2]"), "X . get ( 1 ) . get ( 2 )");
+        assert_eq!(one("A[B[0]]"), "A . get ( B . get ( 0 ) )");
+        assert_eq!(one("M[\"a\"]"), "M . get ( \"a\" )");
+        assert_eq!(one("F(1)[2]"), "F ( 1 ) . get ( 2 )");
+    }
+
+    #[test]
+    fn brackets_after_an_operator_or_keyword_are_literals() {
+        assert_eq!(one("X = [1, 2]"), "X = [ 1 , 2 ]");
+        assert_eq!(one("output [1], [2]"), "output [ 1 ] , [ 2 ]");
+        assert_eq!(one("F([1], [2])"), "F ( [ 1 ] , [ 2 ] )");
+        assert_eq!(one("X = [[1], [2]]"), "X = [ [ 1 ] , [ 2 ] ]");
+        assert_eq!(one("[1, 2][0]"), "[ 1 , 2 ] . get ( 0 )");
+        assert_eq!(one("return [1]"), "return [ 1 ]");
+    }
+
+    #[test]
+    fn attribute_becomes_get_with_a_literal_name() {
+        assert_eq!(one("P.X"), "P . get ( X )");
+        assert_eq!(one("Y = P.X + 1"), "Y = P . get ( X ) + 1");
+        assert_eq!(one("P.POS.X"), "P . get ( POS ) . get ( X )");
+        assert_eq!(one("P.ITEMS[0]"), "P . get ( ITEMS ) . get ( 0 )");
+        assert_eq!(one("A[0].X"), "A . get ( 0 ) . get ( X )");
+    }
+
+    #[test]
+    fn method_calls_are_left_alone() {
+        assert_eq!(one("X.size()"), "X . size ( )");
+        assert_eq!(one("X.push(1)"), "X . push ( 1 )");
+        assert_eq!(one("P.POS.push(1)"), "P . get ( POS ) . push ( 1 )");
+        assert_eq!(one("A[0].push(1)"), "A . get ( 0 ) . push ( 1 )");
+        assert_eq!(one("1.2.copy()"), "1.2 . copy ( )");
+    }
+
+    #[test]
+    fn index_assignment_becomes_set() {
+        assert_eq!(one("X[0] = 5"), "X . set ( 0 , 5 )");
+        assert_eq!(one("X[0] := 5"), "X . set ( 0 , 5 )");
+        assert_eq!(one("X[0] <- 5"), "X . set ( 0 , 5 )");
+        assert_eq!(one("M[\"a\"] = Y"), "M . set ( \"a\" , Y )");
+        assert_eq!(one("A[1][2] = 3"), "A . get ( 1 ) . set ( 2 , 3 )");
+        assert_eq!(one("A[I] = B[J]"), "A . set ( I , B . get ( J ) )");
+        assert_eq!(one("X[0] = Y = 1"), "X . set ( 0 , Y = 1 )");
+    }
+
+    #[test]
+    fn attribute_assignment_becomes_set_with_a_literal_name() {
+        assert_eq!(one("P.X = 1"), "P . set ( X , 1 )");
+        assert_eq!(one("P.X := 1"), "P . set ( X , 1 )");
+        assert_eq!(one("P.POS.X = 1"), "P . get ( POS ) . set ( X , 1 )");
+        assert_eq!(one("P.ITEMS[0] = 1"), "P . get ( ITEMS ) . set ( 0 , 1 )");
+        assert_eq!(one("A[0].X = 1"), "A . get ( 0 ) . set ( X , 1 )");
+    }
+
+    #[test]
+    fn any_operand_can_be_the_base_of_an_assignment_target() {
+        assert_eq!(one("F()[0] = 1"), "F ( ) . set ( 0 , 1 )");
+        assert_eq!(one("S.pop().X = 1"), "S . pop ( ) . set ( X , 1 )");
+        assert_eq!(one("(A)[0] = 1"), "( A ) . set ( 0 , 1 )");
+    }
+
+    #[test]
+    fn plain_assignments_and_declarations_are_not_rewritten() {
+        assert_eq!(one("X = 1"), "X = 1");
+        assert_eq!(one("let X = A[0]"), "let X = A . get ( 0 )");
+        assert_eq!(one("Integer X = A[0]"), "Type:Integer X = A . get ( 0 )");
+        assert_eq!(one("Point P = Q.X"), "Point P = Q . get ( X )");
+        assert_eq!(one("output X = 0"), "output X = 0");
+        assert_eq!(one("F(X = 1)"), "F ( X = 1 )");
+    }
+
+    #[test]
+    fn access_is_rewritten_in_headers_and_generated_lines() {
+        assert_eq!(show("if X[0] then\nend if")[0], "1: if X . get ( 0 )");
+        assert_eq!(
+            show("function F(A = P.X) begin\nend function")[0],
+            "1: function F ( A = P . get ( X ) )"
+        );
+        let lines = show("loop I from A[0] to P.N\nend loop");
+        assert_eq!(
+            lines[0],
+            "1: Type:Integer #COUNTER1 = ( A . get ( 0 ) ) - 1"
+        );
+        assert_eq!(lines[1], "1: Type:Integer #TO1 = ( P . get ( N ) )");
+        let lines = show("loop X in P.ITEMS\nend loop");
+        assert_eq!(
+            lines[0],
+            "1: #ITERATOR1 = ( P . get ( ITEMS ) ) . iterator ( )"
+        );
+        let lines = show("match A[0]\ncase P.X\nend match");
+        assert_eq!(lines[0], "1: let #MATCH1 = ( A . get ( 0 ) )");
+        assert_eq!(lines[1], "2: if #MATCH1 = ( P . get ( X ) )");
+    }
+
+    #[test]
+    fn structure_attribute_lines_are_not_assignments() {
+        let lines = show("structure S\nA = X[0]\nInteger B = 1\nend structure");
+        assert_eq!(lines[1], "2: A = X . get ( 0 )");
+        assert_eq!(lines[2], "2: Type:Integer B = 1".replace("2:", "3:"));
+    }
+
+    #[test]
+    fn generated_access_tokens_take_the_column_of_the_source_token() {
+        let lines = lex("X[0] = 5").unwrap();
+        let columns: Vec<usize> = lines[0].tokens.iter().map(|t| t.column).collect();
+        // X . set ( 0 , 5 )
+        assert_eq!(columns, [1, 2, 2, 2, 3, 6, 8, 6]);
+        let lines = lex("Y = P.X").unwrap();
+        let columns: Vec<usize> = lines[0].tokens.iter().map(|t| t.column).collect();
+        // Y = P . get ( X )
+        assert_eq!(columns, [1, 3, 5, 6, 6, 6, 7, 7]);
+    }
+
+    #[test]
+    fn access_errors() {
+        assert_error("X[]", 1, "expected an expression after `[`");
+        assert_error("Y = X[]", 1, "expected an expression after `[`");
+        assert_error("X[1, 2]", 1, "unexpected `,`");
+        assert_error(
+            "X[0] =",
+            1,
+            "expected an expression after the assignment operator",
+        );
+        assert_error("X[0] = 1, 2", 1, "unexpected `,`");
+        assert_error("X.", 1, "expected a name after `.`");
+        assert_error("X.if", 1, "expected a name after `.`");
+        assert_error("X.Integer = 1", 1, "expected a name after `.`");
+        assert_error("1 + A[0] = 3", 1, "invalid assignment target");
+        assert_error("-A[0] = 1", 1, "invalid assignment target");
+        assert_error("A.B + C.D = 1", 1, "invalid assignment target");
+    }
+
+    #[test]
+    fn access_errors_are_reported_in_source_order() {
+        assert_error("X[] = 1\nend if", 1, "expected an expression after `[`");
+        assert_error("end if\nX[] = 1", 1, "without an open block");
     }
 }

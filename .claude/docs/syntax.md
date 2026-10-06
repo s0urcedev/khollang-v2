@@ -14,7 +14,7 @@ It is based on the V1 language description (`v1/README.md`). Where V2 clarifies,
 6. [Types and values](#6-types-and-values)
 7. [Expressions](#7-expressions)
 8. [Variables and assignment](#8-variables-and-assignment)
-9. [Input, output and call statements](#9-input-output-and-call-statements)
+9. [Input, output and expression statements](#9-input-output-and-expression-statements)
 10. [Control flow](#10-control-flow)
 11. [Functions and procedures](#11-functions-and-procedures)
 12. [Scopes](#12-scopes)
@@ -398,8 +398,8 @@ An expression is built from:
 - literals ([section 5](#5-literals));
 - variable names;
 - parenthesised expressions: `(X + 1) * 2`;
-- indexing: `X[I]`, which can be chained: `X[1][2]`;
-- attribute access: `X.Y` (custom structures), which can be chained: `X.Y.Z`, `X.Y[0]`;
+- indexing: `X[I]`, which can be chained: `X[1][2]` (shorthand for `X.get(I)`, [7.4](#74-index-and-attribute-access));
+- attribute access: `X.Y` (custom structures), which can be chained: `X.Y.Z`, `X.Y[0]` (shorthand for `X.get(Y)`, [7.4](#74-index-and-attribute-access));
 - function calls: `F(A, B)` ([section 11](#11-functions-and-procedures));
 - method calls: `X.size()`, `X.push(1)` ([section 13](#13-built-in-data-structures));
 - constructor calls: `Integer("1")`, `Stack([1, 2])`, `Array<Integer>()`, `Point(1, 2)` ([6.7](#67-type-casting), [section 13](#13-built-in-data-structures), [section 14](#14-custom-structures)).
@@ -467,7 +467,7 @@ Operator precedence follows Python. From the **highest** (binds tightest) to the
 |---|---|---|
 | 1 | indexing `X[I]`, attribute access `X.Y`, calls `F(...)`, method calls `X.m(...)` | left to right |
 | 2 | `pow` | **right** to left: `2 pow 3 pow 2` is `2 pow (3 pow 2)` |
-| 3 | unary `-`, `~` | — |
+| 3 | unary `-`, `~`, `NOT` | — |
 | 4 | `*`, `/`, `div`, `mod` | left to right |
 | 5 | `+`, binary `-` | left to right |
 | 6 | `<<`, `>>` | left to right |
@@ -477,15 +477,15 @@ Operator precedence follows Python. From the **highest** (binds tightest) to the
 | 10 | `==>` | **right** to left: `A ==> B ==> C` is `A ==> (B ==> C)` |
 | 11 | `<==>` | left to right |
 | 12 | `=`, `==`, `!=`, `<>`, `<`, `<=`, `>`, `>=` | none: comparisons cannot be chained |
-| 13 | `NOT` | — |
-| 14 | `AND` | left to right |
-| 15 | `XOR` | left to right |
-| 16 | `OR` | left to right |
-| 17 | `IMP` | **right** to left: `A IMP B IMP C` is `A IMP (B IMP C)` |
-| 18 | `IFF` | left to right |
+| 13 | `AND` | left to right |
+| 14 | `XOR` | left to right |
+| 15 | `OR` | left to right |
+| 16 | `IMP` | **right** to left: `A IMP B IMP C` is `A IMP (B IMP C)` |
+| 17 | `IFF` | left to right |
 
-- As in Python, `pow` binds tighter than a unary `-` on its left, but its right operand may start with a unary `-`: `-2 pow 2` is `-(2 pow 2)` = `-4`, and `2.0 pow -1.0` is `0.5`.
-- The logical operators `NOT`, `AND`, `XOR`, `OR`, `IMP` and `IFF` are **below** the comparisons, so `X > 0 AND Y > 0` means `(X > 0) AND (Y > 0)`.
+- As in Python, `pow` binds tighter than a unary operator on its left, but its right operand may start with a unary operator: `-2 pow 2` is `-(2 pow 2)` = `-4`, and `2.0 pow -1.0` is `0.5`.
+- `NOT` is a unary operator, like `-` and `~`. It binds tighter than every binary operator except `pow`, so `NOT X = Y` means `(NOT X) = Y` and `NOT A AND B` means `(NOT A) AND B`. Write `NOT (X = Y)` to negate a comparison.
+- The binary logical operators `AND`, `XOR`, `OR`, `IMP` and `IFF` are **below** the comparisons, so `X > 0 AND Y > 0` means `(X > 0) AND (Y > 0)`.
 - The bitwise operators `<<`, `>>`, `&`, `^`, `|`, `==>` and `<==>` are **above** the comparisons, so `A & B = 0` means `(A & B) = 0`.
 - In a type, `>>` closes two type argument lists: `Array<Array<Integer>>` is valid.
 - Parentheses always override precedence: `(A + B) * C`.
@@ -525,6 +525,24 @@ output Array<Integer>() = Array<String>() // true: both empty
 output (1, "a") = (1, "a")              // true
 output [1, 2] = (1, 2)                  // false: an array and a Tuple
 ```
+
+### 7.4 Index and attribute access
+
+Index and attribute access are shorthand for the methods `get` and `set`. The interpreter rewrites them before the program runs:
+
+| Written | Same as |
+|---|---|
+| `X[I]` | `X.get(I)` |
+| `X[I] = Y` | `X.set(I, Y)` |
+| `X.Z` | `X.get(Z)` |
+| `X.Z = Y` | `X.set(Z, Y)` |
+
+- Any assignment form works: `X[I] := Y` and `X[I] <- Y` are `X.set(I, Y)` too.
+- Steps chain from left to right. Only the last step of an assignment target becomes `set`: `A[1][2] = 3` is `A.get(1).set(2, 3)`, and `P.POS.X = 1` is `P.get(POS).set(X, 1)`.
+- The part of a target before its last step can be any chain of operands and steps, including calls: `F()[0] = 1`, `S.pop().X = 1`.
+- In `X.Z`, *Z* is a **name used literally**. It is not looked up as a variable, it cannot be computed and it is not a String. `X.Z(...)`, a name followed by `(`, is a method call and not an attribute access.
+- `get` and `set` are ordinary methods, so a program can also write `X.get(I)` and `X.set(I, Y)` directly. They are defined by the built-in collections ([section 13](#13-built-in-data-structures)) and by custom structures ([14.2](#142-accessing-attributes)).
+- Because the two spellings are the same call, `X[Z]` and `X.Z` are the same program. What `get` and `set` do with their first argument depends on *X*: a collection evaluates it as an expression (if `Z = 1`, then `A.Z` on an array is `A.get(1)`), a structure instance takes it as a name (`P.Z` and `P[Z]` read the attribute `Z`). Using the wrong form for the value (for example `P[0]` on a structure instance) is unspecified ([section 16](#16-unspecified-behaviour)).
 
 ## 8. Variables and assignment
 
@@ -638,6 +656,9 @@ X <- Y
   - a variable: `A = 1`
   - an indexed element: `A[2] = 1`, `M["key"] = 1`, `A[1][2] = 1`
   - a structure attribute: `P.X = 1`, `P.POS.X = 1`, `P.ITEMS[0] = 1`
+  - any operand followed by an index or an attribute as its last step: `F()[0] = 1`, `S.pop().X = 1`
+
+  Indexed elements and attributes are assigned with `set` ([7.4](#74-index-and-attribute-access)).
 - In a statement of the form *X* `=` *Y*, the `=` is assignment. Any `=` or `==` **inside the value expression** *Y* is equality:
 
   ```
@@ -651,7 +672,7 @@ X <- Y
   - an element of a **Tuple**: an error (tuples are immutable).
 - Assigning to a plain name that is not declared implicitly declares an untyped variable ([8.2](#82-untyped-variables)).
 
-## 9. Input, output and call statements
+## 9. Input, output and expression statements
 
 ### 9.1 `input`: read a value from standard input
 
@@ -758,15 +779,17 @@ output "Sum:", A + B
 output X
 ```
 
-### 9.3 Call statements
+### 9.3 Expression statements
 
-A function call, procedure call or method call can be a statement by itself:
+A line that is not any other kind of statement is an **expression statement**. The expression is evaluated and its value is discarded. This is how function calls, procedure calls and method calls are used as statements:
 
 ```
 PRINT_REPORT(DATA)   // procedure call
 COMPUTE(5)           // function call; the returned value is discarded
 S.push(10)           // method call
 ```
+
+Any other expression is allowed too (`1 + 2`), but it only has an effect if evaluating it fails or calls something.
 
 ## 10. Control flow
 
@@ -1282,7 +1305,7 @@ General rules:
   3. a literal: `[...]` for any collection except Dictionary and Tuple, `{...}` for a Dictionary, `(...)` for a Tuple ([section 5](#5-literals)).
 - Methods are called as `X.method(...)`. Method names are case-sensitive.
 - Indexes are **0-based**: the first element is `X[0]`.
-- Index-based reading and writing use `X[I]` and `X[I] = Y`. Any assignment form works (`X[I] := Y`, `X[I] <- Y`).
+- Index-based reading and writing use `X[I]` and `X[I] = Y`, which are `X.get(I)` and `X.set(I, Y)` ([7.4](#74-index-and-attribute-access)). Any assignment form works (`X[I] := Y`, `X[I] <- Y`).
 - Values added to a typed collection (by assignment, `push`, `add`, `insert`, `enqueue`, ...) must fit its element type. Otherwise it is a runtime error.
 - Where an element position has no value yet (gaps in a LazyArray, initial elements of a StaticArray), it holds `none` in an untyped collection and the element type's default value ([6.4](#64-default-values)) in a typed one.
 - Every collection (13.1–13.9) has the copy methods `X.copy()` and `X.deep_copy()` ([6.5](#65-copying-and-sharing)).
@@ -1472,7 +1495,7 @@ end structure
 
 - The default value can be given with any assignment operator: `Y = Z`, `Y := Z`, `Y <- Z`.
 - There are no constant attributes.
-- `copy` and `deep_copy` cannot be attribute names, because every instance has the methods `copy()` and `deep_copy()` ([14.4](#144-copying-instances)). Using them is an error.
+- `copy`, `deep_copy`, `get` and `set` cannot be attribute names, because every instance has the methods `copy()`, `deep_copy()` ([14.4](#144-copying-instances)), `get()` and `set()` ([7.4](#74-index-and-attribute-access)). Using them is an error.
 - Typed attributes are type-checked on **every** assignment, including the arguments of the constructor `NAME(...)`.
 - Attributes keep the order in which they are defined. This order matters for the constructor.
 
@@ -1482,6 +1505,8 @@ end structure
 |---|---|
 | `X.Y` | get attribute *Y* of structure instance *X* |
 | `X.Y = Z` | set attribute *Y* of *X* to *Z* (any assignment form works; typed attributes are type-checked) |
+
+- They are shorthand for `X.get(Y)` and `X.set(Y, Z)` ([7.4](#74-index-and-attribute-access)). On a structure instance, the first argument of `get` and `set` is the attribute name, used literally.
 
 ### 14.3 Creating instances
 
@@ -1565,7 +1590,7 @@ The following are errors according to this document:
 | A call with fewer arguments than required parameters or more than total parameters | error |
 | A constant parameter | error |
 | **Custom structures** | |
-| An attribute named `copy` or `deep_copy` | error |
+| An attribute named `copy`, `deep_copy`, `get` or `set` | error |
 | Calling a function, procedure or structure before its definition has executed | error |
 
 ## 16. Unspecified behaviour
@@ -1579,7 +1604,6 @@ The following are intentionally not defined by this document:
 
 **Statements**
 - A statement with more than one top-level assignment operator (e.g. `X = Y = 1`).
-- Whether a bare expression that is not a call (e.g. `1 + 2`) can be a statement.
 - Whether `input` accepts targets other than a plain variable (e.g. `input A[0]`).
 - The exact text format produced by `output` (and therefore by `String(X)`) for Integers, Floats (beyond always having a decimal point), Booleans, `none`, collections, tuples and structure instances.
 - Behaviour when standard input has no more lines.
@@ -1594,6 +1618,7 @@ The following are intentionally not defined by this document:
 - `nonlocal X` when no enclosing function or procedure scope has *X*. `global X` when the global *X* does not exist yet.
 
 **Data structures**
+- What `get` and `set` do when the form of their first argument does not suit the receiver: a name or any other expression on a collection (`X.Z` on an array), an index or any other expression on a structure instance (`P[0]`, `P.get(1 + 2)`).
 - Reading a LazyArray at an index beyond its length, or using negative indexes.
 - Out-of-range indexes on `StaticArray`, `DynamicArray`, `Set`, `Multiset` and `Tuple`.
 - Reading a missing key from a Dictionary.
@@ -1620,7 +1645,7 @@ Conventions:
 program        = block ;
 block          = { statement NL } ;
 
-statement      = declaration | assignment | input | output | call
+statement      = declaration | assignment | input | output | expression_statement
                | if | match | loop | break | continue
                | function_def | procedure_def | return
                | structure_def | global | nonlocal ;
@@ -1632,12 +1657,14 @@ declaration    = "let" identifier [ assign_op expr ]
                | type identifier [ assign_op expr ] ;
 assignment     = target assign_op expr ;   (* implicitly declares an untyped variable
                                               when target is an undeclared plain name *)
-target         = identifier { "[" expr "]" | "." identifier } ;
+target         = identifier
+               | postfix ;                 (* the last step must be "[" expr "]" or "." identifier;
+                                              both are written with get / set, see 7.4 *)
 
 (* input / output / calls *)
 input          = "input" identifier ;
 output         = "output" expr { "," expr } ;
-call           = postfix "(" [ arguments ] ")" ;
+expression_statement = expr ;
 
 (* control flow *)
 if             = "if" expr [ "then" ] NL block
@@ -1690,6 +1717,7 @@ binary_op      = "=" | "==" | "!=" | "<>" | ">" | ">=" | "<" | "<="
                | "AND" | "OR" | "XOR" | "IMP" | "IFF"
                | "&" | "|" | "^" | "==>" | "<==>" | "<<" | ">>"
                | "+" | "-" | "*" | "/" | "mod" | "div" | "pow" ;
+                                                 (* "." identifier without "(" is attribute access *)
 postfix        = primary { "[" expr "]" | "." identifier | "(" [ arguments ] ")" } ;
 primary        = integer | float | string | boolean | none
                | array_literal | dict_literal | tuple_literal
@@ -1735,6 +1763,8 @@ V2 keeps V1's overall syntax, with these fixes, clarifications, changes and exte
 - Functions, procedures and structures can be defined in any block, are locally scoped, are not hoisted, and are first-class values.
 
 **Changes**
+- `NOT` is a unary operator with the same precedence as unary `-` and `~`.
+- Any expression can be a statement ([9.3](#93-expression-statements)).
 - **`Number` is replaced by two types: `Integer` and `Float`.** They are never mixed or converted implicitly. `/` always gives a Float, `div` and `mod` take and give Integers.
 - **Logical and bitwise operators are separate:** `NOT`/`AND`/`OR`/`XOR`/`IMP`/`IFF` work on Booleans only, `~`/`&`/`|`/`^`/`==>`/`<==>`/`<<`/`>>` on Integers only. `AND`, `OR` and `IMP` short-circuit.
 - **Removed** `BinaryTree` / `BinarySearchTree`.
@@ -1765,6 +1795,7 @@ V2 keeps V1's overall syntax, with these fixes, clarifications, changes and exte
 - `break` and `continue`.
 - Methods `copy()` (shallow) and `deep_copy()` (recursive, like Python's `deepcopy`) for collections and structure instances.
 - Bitwise shifts `<<` and `>>`.
+- Index and attribute access are shorthand for the methods `get` and `set` ([7.4](#74-index-and-attribute-access)). The target of an assignment can be any operand followed by an index or attribute.
 - For-each loop `loop for A in B do` over arrays, tuples, sets, multisets, stacks, queues and dictionary keys, with iterators `X.iterator()`, `I.has_next()`, `I.next()`.
 - `global` and `nonlocal` declarations.
 - Default parameter values.

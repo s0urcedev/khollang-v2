@@ -246,6 +246,52 @@ pub enum Symbol {
 }
 
 impl Symbol {
+    /// The symbol as written, for error messages. Word operators are lowercase.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Symbol::Equal => "=",
+            Symbol::EqualEqual => "==",
+            Symbol::BangEqual => "!=",
+            Symbol::LessGreater => "<>",
+            Symbol::Less => "<",
+            Symbol::LessEqual => "<=",
+            Symbol::Greater => ">",
+            Symbol::GreaterEqual => ">=",
+            Symbol::ColonEqual => ":=",
+            Symbol::LeftArrow => "<-",
+            Symbol::Plus => "+",
+            Symbol::Minus => "-",
+            Symbol::Star => "*",
+            Symbol::Slash => "/",
+            Symbol::Tilde => "~",
+            Symbol::Ampersand => "&",
+            Symbol::Pipe => "|",
+            Symbol::Caret => "^",
+            Symbol::Implies => "==>",
+            Symbol::Equivalent => "<==>",
+            Symbol::ShiftLeft => "<<",
+            Symbol::ShiftRight => ">>",
+            Symbol::LeftParen => "(",
+            Symbol::RightParen => ")",
+            Symbol::LeftBracket => "[",
+            Symbol::RightBracket => "]",
+            Symbol::LeftBrace => "{",
+            Symbol::RightBrace => "}",
+            Symbol::Comma => ",",
+            Symbol::Dot => ".",
+            Symbol::Colon => ":",
+            Symbol::Not => "not",
+            Symbol::And => "and",
+            Symbol::Or => "or",
+            Symbol::Xor => "xor",
+            Symbol::Imp => "imp",
+            Symbol::Iff => "iff",
+            Symbol::Mod => "mod",
+            Symbol::Div => "div",
+            Symbol::Pow => "pow",
+        }
+    }
+
     /// Word operators by their lowercase spelling.
     pub fn from_lowercase_word(word: &str) -> Option<Symbol> {
         Some(match word {
@@ -338,6 +384,14 @@ mod tests {
         for name in ["integer", "INTEGER", "None", "List", "Dict"] {
             assert_eq!(BuiltinType::from_name(name), None, "{name}");
         }
+    }
+
+    #[test]
+    fn word_operators_are_written_in_lowercase() {
+        for word in ["not", "and", "or", "xor", "imp", "iff", "mod", "div", "pow"] {
+            assert_eq!(Symbol::from_lowercase_word(word).unwrap().as_str(), word);
+        }
+        assert_eq!(Symbol::Equivalent.as_str(), "<==>");
     }
 
     #[test]

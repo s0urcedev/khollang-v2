@@ -17,5 +17,5 @@ Package this folder into the VS Code and install the `.vsix` file:
 
 ```
 npx @vscode/vsce package
-code --install-extension khollang-1.0.0.vsix
+code --install-extension "khollang-$(node -p "require('./package.json').version").vsix"
 ```

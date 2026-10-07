@@ -2,7 +2,7 @@
   "name": "khollang",
   "displayName": "Khollang",
   "description": "Syntax highlighting for the Khollang programming language",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "s0urcedev",
   "repository": {
     "type": "git",
@@ -38,6 +38,17 @@
           "when": "editorLangId == khollang"
         }
       ]
+    },
+    "configurationDefaults": {
+      "[khollang]": {
+        "editor.quickSuggestions": {
+          "other": "off",
+          "comments": "off",
+          "strings": "off"
+        },
+        "editor.suggestOnTriggerCharacters": false,
+        "editor.wordBasedSuggestions": "off"
+      }
     },
     "languages": [
       {

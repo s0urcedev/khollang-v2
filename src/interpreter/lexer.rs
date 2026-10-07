@@ -105,7 +105,17 @@ fn scan_line(text: &str, line: usize) -> Result<Vec<Token>, Error> {
                 pos = next;
             }
             c if c.is_ascii_alphabetic() || c == '_' => {
-                let (kind, next) = scan_word(&chars, pos, line)?;
+                // a word right after a `.` is a method or attribute name, never a keyword:
+                // `D.has(K)` is a method call although `has` is a keyword
+                let after_dot = tokens
+                    .last()
+                    .is_some_and(|t| t.kind == TokenKind::Symbol(Symbol::Dot));
+                let (kind, next) = if after_dot {
+                    let end = word_end(&chars, pos);
+                    (TokenKind::Identifier(chars[pos..end].iter().collect()), end)
+                } else {
+                    scan_word(&chars, pos, line)?
+                };
                 tokens.push(Token { kind, column });
                 pos = next;
             }
@@ -1904,6 +1914,19 @@ mod tests {
     }
 
     #[test]
+    fn a_word_after_a_dot_is_never_a_keyword() {
+        assert_eq!(tokens("D.has(K)"), "D . has ( K )");
+        assert_eq!(tokens("X.in(1)"), "X . in ( 1 )");
+        assert_eq!(tokens("X.End.if.Integer"), "X . End . if . Integer");
+        let kinds = |source: &str| -> Vec<TokenKind> {
+            lex(source).unwrap()[0].tokens.iter().map(|t| t.kind.clone()).collect()
+        };
+        assert_eq!(kinds("D.has(1)")[2], TokenKind::Identifier("has".into()));
+        // elsewhere the same word is a keyword
+        assert_error("has", 1, "unexpected `has`");
+    }
+
+    #[test]
     fn brackets_and_dots() {
         assert_eq!(tokens("A[1].B(2)"), "A [ 1 ] . B ( 2 )");
         assert_eq!(tokens("{\"a\": 1}"), "{ \"a\" : 1 }");
@@ -3021,8 +3044,9 @@ end procedure";
         );
         assert_error("X[0] = 1, 2", 1, "unexpected `,`");
         assert_error("X.", 1, "expected a name after `.`");
-        assert_error("X.if", 1, "expected a name after `.`");
-        assert_error("X.Integer = 1", 1, "expected a name after `.`");
+        // a word after a `.` is a name, also when it is spelled like a keyword
+        assert_eq!(tokens("X.if"), "X . if");
+        assert_error("X.(1) = 1", 1, "expected a name after `.`");
         assert_error("1 + A[0] = 3", 1, "invalid assignment target");
         assert_error("-A[0] = 1", 1, "invalid assignment target");
         assert_error("A.B + C.D = 1", 1, "invalid assignment target");

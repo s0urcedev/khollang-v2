@@ -4,6 +4,9 @@
 //! blocks line by line. It also reports the static errors ([design 4.5]): everything that
 //! can be detected without running the program.
 
+use std::collections::HashSet;
+use std::rc::Rc;
+
 use super::ast::*;
 use super::error::Error;
 use super::token::{BuiltinType, Keyword, Line, Symbol, Token, TokenKind};
@@ -17,6 +20,7 @@ pub fn parse(lines: Vec<Line>) -> Result<Block, Error> {
             context: Context::Program,
             loops: 0,
             returns_value: false,
+            used: HashSet::new(),
         }],
     };
     parser.block(&[])
@@ -44,6 +48,9 @@ struct Frame {
     loops: usize,
     /// Whether a `return EXPR` was found in this context.
     returns_value: bool,
+    /// The names read, assigned or declared so far in this context, for the check that
+    /// `global` / `nonlocal` come before the first use ([syntax 12.5]).
+    used: HashSet<Name>,
 }
 
 struct Parser<'a> {
@@ -57,6 +64,12 @@ impl<'a> Parser<'a> {
         self.frames
             .last_mut()
             .expect("the program frame is never popped")
+    }
+
+    /// Records the names the cursor has seen since the last call as used in this context.
+    fn absorb(&mut self, cursor: &mut Cursor) {
+        let names = std::mem::take(&mut cursor.names);
+        self.frame().used.extend(names);
     }
 
     /// Parses statements until a line that starts with one of `stops` (not consumed) or the
@@ -100,8 +113,10 @@ impl<'a> Parser<'a> {
             TokenKind::Keyword(keyword) => self.keyword_statement(keyword, &mut cursor)?,
             _ => simple_statement(&mut cursor)?,
         };
+        self.absorb(&mut cursor);
         Ok(Statement {
             line: line.number,
+            column: line.tokens[0].column,
             kind,
         })
     }
@@ -114,7 +129,7 @@ impl<'a> Parser<'a> {
         let first = cursor.next().expect("a line is never empty");
         match keyword {
             Keyword::Let => {
-                let name = cursor.name("a variable name after `let`")?;
+                let name = cursor.declared_name("a variable name after `let`")?;
                 let value = match cursor.eat_assignment() {
                     true => Some(cursor.expression()?),
                     false => None,
@@ -126,7 +141,7 @@ impl<'a> Parser<'a> {
                 if matches!(cursor.peek_kind(), Some(TokenKind::Type(_))) {
                     return Err(cursor.error_here("`const` cannot be combined with a type"));
                 }
-                let name = cursor.name("a variable name after `const`")?;
+                let name = cursor.declared_name("a variable name after `const`")?;
                 if !cursor.eat_assignment() {
                     return Err(cursor.error_at(first, "`const` needs a value"));
                 }
@@ -135,7 +150,7 @@ impl<'a> Parser<'a> {
                 Ok(StatementKind::Const { name, value })
             }
             Keyword::Input => {
-                let name = cursor.name("a variable name after `input`")?;
+                let name = cursor.declared_name("a variable name after `input`")?;
                 cursor.expect_end()?;
                 Ok(StatementKind::Input(name))
             }
@@ -148,9 +163,25 @@ impl<'a> Parser<'a> {
                 Ok(StatementKind::Output(values))
             }
             Keyword::Global | Keyword::Nonlocal => {
-                let mut names = vec![cursor.name(&format!("a name after `{}`", keyword.as_str()))?];
-                while cursor.eat_symbol(Symbol::Comma) {
-                    names.push(cursor.name("a name")?);
+                let mut names = Vec::new();
+                loop {
+                    let token = cursor.peek();
+                    let name = cursor.name(&format!("a name after `{}`", keyword.as_str()))?;
+                    let frame = self.frame();
+                    if frame.context != Context::Program && frame.used.contains(&name) {
+                        return Err(cursor.error_at(
+                            token.expect("the name was just read"),
+                            format!(
+                                "`{name}` is used before `{}`: it must come before every use \
+                                 and assignment of the name in the function",
+                                keyword.as_str()
+                            ),
+                        ));
+                    }
+                    names.push(name);
+                    if !cursor.eat_symbol(Symbol::Comma) {
+                        break;
+                    }
                 }
                 cursor.expect_end()?;
                 Ok(if keyword == Keyword::Global {
@@ -220,6 +251,7 @@ impl<'a> Parser<'a> {
 
         let condition = cursor.expression()?;
         cursor.expect_end()?;
+        self.absorb(cursor);
         let body = self.block(&[Keyword::ElseIf, Keyword::Else, Keyword::EndIf])?;
         branches.push((condition, body));
 
@@ -232,6 +264,7 @@ impl<'a> Parser<'a> {
                 TokenKind::Keyword(Keyword::ElseIf) => {
                     let condition = cursor.expression()?;
                     cursor.expect_end()?;
+                    self.absorb(&mut cursor);
                     let body = self.block(&[Keyword::ElseIf, Keyword::Else, Keyword::EndIf])?;
                     branches.push((condition, body));
                 }
@@ -262,6 +295,7 @@ impl<'a> Parser<'a> {
         }
         let condition = cursor.expression()?;
         cursor.expect_end()?;
+        self.absorb(cursor);
 
         self.frame().loops += 1;
         let body = self.block(&[Keyword::EndLoop])?;
@@ -280,9 +314,10 @@ impl<'a> Parser<'a> {
             }
             _ => None,
         };
-        let name = cursor.name("the name of the function")?;
+        let name = cursor.declared_name("the name of the function")?;
         let parameters = cursor.parameters()?;
         cursor.expect_end()?;
+        self.absorb(cursor);
 
         let (body, returns_value) =
             self.definition_body(cursor.line, Context::Function, Keyword::EndFunction)?;
@@ -296,21 +331,22 @@ impl<'a> Parser<'a> {
             name,
             return_type,
             parameters,
-            body,
+            body: Rc::new(body),
         })
     }
 
     fn procedure(&mut self, cursor: &mut Cursor<'a>) -> Result<StatementKind, Error> {
-        let name = cursor.name("the name of the procedure")?;
+        let name = cursor.declared_name("the name of the procedure")?;
         let parameters = cursor.parameters()?;
         cursor.expect_end()?;
+        self.absorb(cursor);
 
         let (body, _) =
             self.definition_body(cursor.line, Context::Procedure, Keyword::EndProcedure)?;
         Ok(StatementKind::Procedure {
             name,
             parameters,
-            body,
+            body: Rc::new(body),
         })
     }
 
@@ -326,6 +362,7 @@ impl<'a> Parser<'a> {
             context,
             loops: 0,
             returns_value: false,
+            used: HashSet::new(),
         });
         let body = self.block(&[end])?;
         let frame = self.frames.pop().expect("the frame was pushed above");
@@ -334,8 +371,9 @@ impl<'a> Parser<'a> {
     }
 
     fn structure(&mut self, cursor: &mut Cursor<'a>) -> Result<StatementKind, Error> {
-        let name = cursor.name("the name of the structure")?;
+        let name = cursor.declared_name("the name of the structure")?;
         cursor.expect_end()?;
+        self.absorb(cursor);
 
         let mut attributes: Vec<Parameter> = Vec::new();
         loop {
@@ -346,6 +384,7 @@ impl<'a> Parser<'a> {
             let mut cursor = Cursor::new(&line.tokens, line.number);
             let attribute = cursor.parameter("an attribute")?;
             cursor.expect_end()?;
+            self.absorb(&mut cursor);
             if RESERVED_ATTRIBUTES.contains(&attribute.name.as_str()) {
                 return Err(cursor.error_at(
                     &line.tokens[0],
@@ -365,7 +404,7 @@ impl<'a> Parser<'a> {
 /// or an expression statement.
 fn simple_statement(cursor: &mut Cursor) -> Result<StatementKind, Error> {
     if let Some(ty) = cursor.declared_type()? {
-        let name = cursor.name("a variable name after the type")?;
+        let name = cursor.declared_name("a variable name after the type")?;
         let value = match cursor.eat_assignment() {
             true => Some(cursor.expression()?),
             false => None,
@@ -391,6 +430,7 @@ fn simple_statement(cursor: &mut Cursor) -> Result<StatementKind, Error> {
             }
         };
         cursor.pos = at + 1;
+        cursor.names.push(target.clone());
         let value = cursor.expression()?;
         cursor.expect_end()?;
         return Ok(StatementKind::Assign { target, value });
@@ -414,6 +454,8 @@ struct Cursor<'a> {
     half_shift: bool,
     /// The `<-` that was just read as `<` is followed by an implicit unary `-`.
     pending_negate: bool,
+    /// The names read, assigned or declared on this line so far ([`Frame::used`]).
+    names: Vec<Name>,
 }
 
 fn describe(token: &Token) -> String {
@@ -445,6 +487,7 @@ impl<'a> Cursor<'a> {
             pos: 0,
             half_shift: false,
             pending_negate: false,
+            names: Vec::new(),
         }
     }
 
@@ -560,6 +603,13 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// A name that the statement declares or assigns: it counts as used.
+    fn declared_name(&mut self, what: &str) -> Result<Name, Error> {
+        let name = self.name(what)?;
+        self.names.push(name.clone());
+        Ok(name)
+    }
+
     /// A name: an identifier. Keywords and built-in types are reserved.
     fn name(&mut self, what: &str) -> Result<Name, Error> {
         match self.peek_kind() {
@@ -616,6 +666,16 @@ impl<'a> Cursor<'a> {
             BuiltinType::Float => self.without_arguments(token, Type::Float),
             BuiltinType::String => self.without_arguments(token, Type::String),
             BuiltinType::Boolean => self.without_arguments(token, Type::Boolean),
+            BuiltinType::FunctionType => self.without_arguments(token, Type::FunctionType),
+            BuiltinType::ProcedureType => self.without_arguments(token, Type::ProcedureType),
+            BuiltinType::Iterator => {
+                if !self.eat_symbol(Symbol::Less) {
+                    return Ok(Type::Iterator(None));
+                }
+                let element = self.parse_type()?;
+                self.expect_close_angle()?;
+                Ok(Type::Iterator(Some(Box::new(element))))
+            }
             BuiltinType::Array | BuiltinType::LazyArray => {
                 self.collection_type(CollectionKind::LazyArray)
             }
@@ -625,6 +685,10 @@ impl<'a> Cursor<'a> {
             BuiltinType::Queue => self.collection_type(CollectionKind::Queue),
             BuiltinType::Set => self.collection_type(CollectionKind::Set),
             BuiltinType::Multiset => self.collection_type(CollectionKind::Multiset),
+            BuiltinType::UnorderedSet => self.collection_type(CollectionKind::UnorderedSet),
+            BuiltinType::UnorderedMultiset => {
+                self.collection_type(CollectionKind::UnorderedMultiset)
+            }
             BuiltinType::Dictionary | BuiltinType::Map => {
                 if !self.eat_symbol(Symbol::Less) {
                     return Ok(Type::Dictionary(None));
@@ -743,6 +807,15 @@ impl<'a> Cursor<'a> {
 
     // ----- expressions -----
 
+    /// An expression at the position of `token` ([design 4.1]).
+    fn expr(&self, kind: ExpressionKind, token: &Token) -> Expression {
+        Expression {
+            kind,
+            line: self.line,
+            column: token.column,
+        }
+    }
+
     /// One expression. It ends before the first token that cannot continue it.
     fn expression(&mut self) -> Result<Expression, Error> {
         self.iff()
@@ -751,6 +824,20 @@ impl<'a> Cursor<'a> {
     // Precedence, from the lowest ([syntax 7.2.1](../../.claude/docs/syntax.md)):
     // IFF > IMP > OR > XOR > AND > comparison > <==> > ==> > | > ^ > & > shifts > + - >
     // * / div mod > unary > pow > postfix.
+
+    /// A binary node at the position of its operator token.
+    fn binary(
+        &self,
+        operator: BinaryOperator,
+        token: &Token,
+        left: Expression,
+        right: Expression,
+    ) -> Expression {
+        self.expr(
+            ExpressionKind::Binary(operator, Box::new(left), Box::new(right)),
+            token,
+        )
+    }
 
     /// A left-associative level: `operand { operator operand }`.
     fn left_assoc(
@@ -761,9 +848,10 @@ impl<'a> Cursor<'a> {
         let mut left = operand(self)?;
         'next: loop {
             for (symbol, operator) in operators {
-                if self.eat_symbol(*symbol) {
+                if self.at_symbol(*symbol) {
+                    let token = self.next().expect("the operator was just seen");
                     let right = operand(self)?;
-                    left = Expression::Binary(*operator, Box::new(left), Box::new(right));
+                    left = self.binary(*operator, token, left, right);
                     continue 'next;
                 }
             }
@@ -778,13 +866,10 @@ impl<'a> Cursor<'a> {
     /// Right-associative: `A IMP B IMP C` is `A IMP (B IMP C)`.
     fn imp(&mut self) -> Result<Expression, Error> {
         let left = self.or()?;
-        if self.eat_symbol(Symbol::Imp) {
+        if self.at_symbol(Symbol::Imp) {
+            let token = self.next().expect("the operator was just seen");
             let right = self.imp()?;
-            return Ok(Expression::Binary(
-                BinaryOperator::Imp,
-                Box::new(left),
-                Box::new(right),
-            ));
+            return Ok(self.binary(BinaryOperator::Imp, token, left, right));
         }
         Ok(left)
     }
@@ -824,7 +909,7 @@ impl<'a> Cursor<'a> {
         let Some((symbol, operator)) = self.comparison_operator() else {
             return Ok(left);
         };
-        self.pos += 1;
+        let token = self.next().expect("the operator was just seen");
         self.pending_negate = symbol == Symbol::LeftArrow;
         let right = self.bit_iff()?;
         if self.comparison_operator().is_some() {
@@ -832,11 +917,7 @@ impl<'a> Cursor<'a> {
                 self.error_here("comparisons cannot be chained: write `(A < B) AND (B < C)`")
             );
         }
-        Ok(Expression::Binary(
-            operator,
-            Box::new(left),
-            Box::new(right),
-        ))
+        Ok(self.binary(operator, token, left, right))
     }
 
     fn bit_iff(&mut self) -> Result<Expression, Error> {
@@ -849,13 +930,10 @@ impl<'a> Cursor<'a> {
     /// Right-associative: `A ==> B ==> C` is `A ==> (B ==> C)`.
     fn bit_imp(&mut self) -> Result<Expression, Error> {
         let left = self.bit_or()?;
-        if self.eat_symbol(Symbol::Implies) {
+        if self.at_symbol(Symbol::Implies) {
+            let token = self.next().expect("the operator was just seen");
             let right = self.bit_imp()?;
-            return Ok(Expression::Binary(
-                BinaryOperator::BitImp,
-                Box::new(left),
-                Box::new(right),
-            ));
+            return Ok(self.binary(BinaryOperator::BitImp, token, left, right));
         }
         Ok(left)
     }
@@ -907,8 +985,9 @@ impl<'a> Cursor<'a> {
     /// Unary `-`, `~` and `NOT`. They bind tighter than `*` but looser than `pow`.
     fn unary(&mut self) -> Result<Expression, Error> {
         let operator = if self.pending_negate {
+            // the `-` that follows a `<-` that was read as `<`: it sits at the `<-` token
             self.pending_negate = false;
-            Some(UnaryOperator::Negate)
+            Some((UnaryOperator::Negate, &self.tokens[self.pos - 1]))
         } else {
             let operator = match self.peek_kind() {
                 Some(TokenKind::Symbol(Symbol::Minus)) => Some(UnaryOperator::Negate),
@@ -916,13 +995,13 @@ impl<'a> Cursor<'a> {
                 Some(TokenKind::Symbol(Symbol::Not)) => Some(UnaryOperator::Not),
                 _ => None,
             };
-            if operator.is_some() {
-                self.pos += 1;
-            }
-            operator
+            operator.map(|operator| (operator, self.next().expect("the operator was just seen")))
         };
         match operator {
-            Some(operator) => Ok(Expression::Unary(operator, Box::new(self.unary()?))),
+            Some((operator, token)) => {
+                let operand = self.unary()?;
+                Ok(self.expr(ExpressionKind::Unary(operator, Box::new(operand)), token))
+            }
             None => self.power(),
         }
     }
@@ -930,13 +1009,10 @@ impl<'a> Cursor<'a> {
     /// Right-associative, and the exponent may start with a unary operator.
     fn power(&mut self) -> Result<Expression, Error> {
         let base = self.postfix()?;
-        if self.eat_symbol(Symbol::Pow) {
+        if self.at_symbol(Symbol::Pow) {
+            let token = self.next().expect("the operator was just seen");
             let exponent = self.unary()?;
-            return Ok(Expression::Binary(
-                BinaryOperator::Power,
-                Box::new(base),
-                Box::new(exponent),
-            ));
+            return Ok(self.binary(BinaryOperator::Power, token, base, exponent));
         }
         Ok(base)
     }
@@ -947,16 +1023,20 @@ impl<'a> Cursor<'a> {
         let mut expression = self.primary()?;
         loop {
             if self.at_symbol(Symbol::LeftParen) {
+                let token = self.peek().expect("the `(` was just seen");
                 let arguments = self.arguments()?;
-                expression = Expression::Call(Box::new(expression), arguments);
+                expression = self.expr(ExpressionKind::Call(Box::new(expression), arguments), token);
             } else if self.at_symbol(Symbol::Dot) {
-                self.pos += 1;
+                let token = self.next().expect("the `.` was just seen");
                 let name = self.name("a method name after `.`")?;
                 if !self.at_symbol(Symbol::LeftParen) {
                     return Err(self.expected("`(` after the method name"));
                 }
                 let arguments = self.arguments()?;
-                expression = Expression::MethodCall(Box::new(expression), name, arguments);
+                expression = self.expr(
+                    ExpressionKind::MethodCall(Box::new(expression), name, arguments),
+                    token,
+                );
             } else {
                 return Ok(expression);
             }
@@ -984,20 +1064,29 @@ impl<'a> Cursor<'a> {
         let Some(token) = self.peek() else {
             return Err(self.expected("an expression"));
         };
-        let expression = match &token.kind {
-            TokenKind::Integer(value) => Expression::Integer(*value),
-            TokenKind::Float(value) => Expression::Float(*value),
-            TokenKind::String(value) => Expression::String(value.clone()),
-            TokenKind::Boolean(value) => Expression::Boolean(*value),
-            TokenKind::None => Expression::None,
-            TokenKind::Identifier(name) => Expression::Variable(name.clone()),
+        let kind = match &token.kind {
+            TokenKind::Integer(value) => ExpressionKind::Integer(*value),
+            TokenKind::Float(value) => ExpressionKind::Float(*value),
+            TokenKind::String(value) => ExpressionKind::String(value.clone()),
+            TokenKind::Boolean(value) => ExpressionKind::Boolean(*value),
+            TokenKind::None => ExpressionKind::None,
+            TokenKind::Identifier(name) => {
+                self.names.push(name.clone());
+                ExpressionKind::Variable(name.clone())
+            }
             TokenKind::Type(_) => {
                 let ty = self.parse_type()?;
+                if matches!(ty, Type::Iterator(_)) {
+                    return Err(self.error_at(
+                        token,
+                        "`Iterator` has no constructor: an iterator is returned by `X.iterator()`",
+                    ));
+                }
                 if !self.at_symbol(Symbol::LeftParen) {
                     return Err(self.expected("`(` after a type: a type is used as a constructor"));
                 }
                 let arguments = self.arguments()?;
-                return Ok(Expression::Construct(ty, arguments));
+                return Ok(self.expr(ExpressionKind::Construct(ty, arguments), token));
             }
             TokenKind::Symbol(Symbol::LeftParen) => return self.parenthesised(),
             TokenKind::Symbol(Symbol::LeftBracket) => return self.array(),
@@ -1005,14 +1094,15 @@ impl<'a> Cursor<'a> {
             _ => return Err(self.expected("an expression")),
         };
         self.pos += 1;
-        Ok(expression)
+        Ok(self.expr(kind, token))
     }
 
     /// `(X)`, `()`, `(X,)` and `(X, Y, ...)`.
     fn parenthesised(&mut self) -> Result<Expression, Error> {
+        let open = self.peek().expect("the `(` was just seen");
         self.expect_symbol(Symbol::LeftParen)?;
         if self.eat_symbol(Symbol::RightParen) {
-            return Ok(Expression::Tuple(Vec::new()));
+            return Ok(self.expr(ExpressionKind::Tuple(Vec::new()), open));
         }
         let first = self.expression()?;
         if self.eat_symbol(Symbol::RightParen) {
@@ -1024,20 +1114,21 @@ impl<'a> Cursor<'a> {
         let mut elements = vec![first];
         while self.eat_symbol(Symbol::Comma) {
             if elements.len() == 1 && self.eat_symbol(Symbol::RightParen) {
-                return Ok(Expression::Tuple(elements));
+                return Ok(self.expr(ExpressionKind::Tuple(elements), open));
             }
             elements.push(self.expression()?);
         }
         self.close_list(Symbol::RightParen)?;
-        Ok(Expression::Tuple(elements))
+        Ok(self.expr(ExpressionKind::Tuple(elements), open))
     }
 
     /// `[X, Y, ...]`
     fn array(&mut self) -> Result<Expression, Error> {
+        let open = self.peek().expect("the `[` was just seen");
         self.expect_symbol(Symbol::LeftBracket)?;
         let mut elements = Vec::new();
         if self.eat_symbol(Symbol::RightBracket) {
-            return Ok(Expression::Array(elements));
+            return Ok(self.expr(ExpressionKind::Array(elements), open));
         }
         loop {
             elements.push(self.expression()?);
@@ -1046,15 +1137,16 @@ impl<'a> Cursor<'a> {
             }
         }
         self.close_list(Symbol::RightBracket)?;
-        Ok(Expression::Array(elements))
+        Ok(self.expr(ExpressionKind::Array(elements), open))
     }
 
     /// `{A: X, B: Y, ...}`
     fn dictionary(&mut self) -> Result<Expression, Error> {
+        let open = self.peek().expect("the `{` was just seen");
         self.expect_symbol(Symbol::LeftBrace)?;
         let mut pairs = Vec::new();
         if self.eat_symbol(Symbol::RightBrace) {
-            return Ok(Expression::Dictionary(pairs));
+            return Ok(self.expr(ExpressionKind::Dictionary(pairs), open));
         }
         loop {
             let key = self.expression()?;
@@ -1066,7 +1158,7 @@ impl<'a> Cursor<'a> {
             }
         }
         self.close_list(Symbol::RightBrace)?;
-        Ok(Expression::Dictionary(pairs))
+        Ok(self.expr(ExpressionKind::Dictionary(pairs), open))
     }
 }
 
@@ -1116,24 +1208,24 @@ mod tests {
     }
 
     fn show_expression(expression: &Expression) -> String {
-        match expression {
-            Expression::Integer(value) => value.to_string(),
-            Expression::Float(value) => format!("{value:?}"),
-            Expression::String(value) => format!("{value:?}"),
-            Expression::Boolean(value) => value.to_string(),
-            Expression::None => "none".into(),
-            Expression::Array(items) => format!("[{}]", list(items)),
-            Expression::Dictionary(pairs) => {
+        match &expression.kind {
+            ExpressionKind::Integer(value) => value.to_string(),
+            ExpressionKind::Float(value) => format!("{value:?}"),
+            ExpressionKind::String(value) => format!("{value:?}"),
+            ExpressionKind::Boolean(value) => value.to_string(),
+            ExpressionKind::None => "none".into(),
+            ExpressionKind::Array(items) => format!("[{}]", list(items)),
+            ExpressionKind::Dictionary(pairs) => {
                 let pairs: Vec<String> = pairs
                     .iter()
                     .map(|(k, v)| format!("{}: {}", show_expression(k), show_expression(v)))
                     .collect();
                 format!("{{{}}}", pairs.join(", "))
             }
-            Expression::Tuple(items) if items.len() == 1 => format!("({},)", list(items)),
-            Expression::Tuple(items) => format!("({})", list(items)),
-            Expression::Variable(name) => name.clone(),
-            Expression::Unary(operator, operand) => {
+            ExpressionKind::Tuple(items) if items.len() == 1 => format!("({},)", list(items)),
+            ExpressionKind::Tuple(items) => format!("({})", list(items)),
+            ExpressionKind::Variable(name) => name.clone(),
+            ExpressionKind::Unary(operator, operand) => {
                 let name = match operator {
                     UnaryOperator::Negate => "neg",
                     UnaryOperator::Not => "not",
@@ -1141,23 +1233,23 @@ mod tests {
                 };
                 format!("({name} {})", show_expression(operand))
             }
-            Expression::Binary(op, left, right) => format!(
+            ExpressionKind::Binary(op, left, right) => format!(
                 "({} {} {})",
                 operator(*op),
                 show_expression(left),
                 show_expression(right)
             ),
-            Expression::Call(callee, arguments) => {
+            ExpressionKind::Call(callee, arguments) => {
                 let mut parts = vec!["call".to_string(), show_expression(callee)];
                 parts.extend(arguments.iter().map(show_expression));
                 format!("({})", parts.join(" "))
             }
-            Expression::MethodCall(receiver, name, arguments) => {
+            ExpressionKind::MethodCall(receiver, name, arguments) => {
                 let mut parts = vec![format!(".{name}"), show_expression(receiver)];
                 parts.extend(arguments.iter().map(show_expression));
                 format!("({})", parts.join(" "))
             }
-            Expression::Construct(ty, arguments) => {
+            ExpressionKind::Construct(ty, arguments) => {
                 let mut parts = vec!["new".to_string(), show_type(ty)];
                 parts.extend(arguments.iter().map(show_expression));
                 format!("({})", parts.join(" "))
@@ -1174,6 +1266,10 @@ mod tests {
             Type::Float => "Float".into(),
             Type::String => "String".into(),
             Type::Boolean => "Boolean".into(),
+            Type::FunctionType => "FunctionType".into(),
+            Type::ProcedureType => "ProcedureType".into(),
+            Type::Iterator(None) => "Iterator".into(),
+            Type::Iterator(Some(element)) => format!("Iterator<{}>", show_type(element)),
             Type::Collection(kind, None) => format!("{kind:?}"),
             Type::Collection(kind, Some(element)) => format!("{kind:?}<{}>", show_type(element)),
             Type::Dictionary(None) => "Dictionary".into(),
@@ -2326,5 +2422,166 @@ output C()
                 "output (call C)",
             ]
         );
+    }
+
+    // ----- new types -----
+
+    #[test]
+    fn new_types() {
+        assert_eq!(one("FunctionType F"), "FunctionType F");
+        assert_eq!(one("ProcedureType P"), "ProcedureType P");
+        assert_eq!(
+            one("Array<FunctionType> A = []"),
+            "LazyArray<FunctionType> A = []"
+        );
+        assert_eq!(one("UnorderedSet<Integer> S"), "UnorderedSet<Integer> S");
+        assert_eq!(one("UnorderedMultiset M"), "UnorderedMultiset M");
+        assert_eq!(one("Iterator I"), "Iterator I");
+        assert_eq!(one("Iterator<Array<Integer>> I"), "Iterator<LazyArray<Integer>> I");
+        assert_eq!(
+            expr("FunctionType(P, 1)"),
+            "(new FunctionType P 1)"
+        );
+        assert_eq!(expr("ProcedureType(F)"), "(new ProcedureType F)");
+        assert_eq!(
+            one("function FunctionType MAKE() begin\n return F\nend function"),
+            "function FunctionType MAKE() { return F }"
+        );
+        assert_error("output FunctionType<Integer>()", 1, "does not take type arguments");
+    }
+
+    #[test]
+    fn capitalised_function_and_procedure_are_still_the_keywords() {
+        assert_eq!(
+            one("Function F() begin\n return 1\nend function"),
+            "function F() { return 1 }"
+        );
+    }
+
+    #[test]
+    fn iterators_have_no_constructor() {
+        assert_error("output Iterator()", 1, "no constructor");
+        assert_error("output Iterator<Integer>()", 1, "no constructor");
+        assert_error("Iterator()", 1, "no constructor");
+    }
+
+    // ----- global and nonlocal come first -----
+
+    #[test]
+    fn global_and_nonlocal_must_come_before_the_first_use() {
+        let ok = "procedure P() begin\n global X\n X = X + 1\nend procedure";
+        assert_eq!(program(ok).len(), 1);
+        assert_error(
+            "procedure P() begin\n output X\n global X\nend procedure",
+            3,
+            "`X` is used before `global`",
+        );
+        assert_error(
+            "procedure P() begin\n X = 1\n global X\nend procedure",
+            3,
+            "used before",
+        );
+        assert_error(
+            "procedure P() begin\n let X = 1\n nonlocal X\nend procedure",
+            3,
+            "used before `nonlocal`",
+        );
+        assert_error(
+            "procedure P() begin\n input X\n global X\nend procedure",
+            3,
+            "used before",
+        );
+        // nested blocks count as the same context
+        assert_error(
+            "procedure P() begin\n if true then\n  output X\n end if\n global X\nend procedure",
+            5,
+            "used before",
+        );
+        // the header of a block is part of the context
+        assert_error(
+            "procedure P() begin\n if X then\n  global X\n end if\nend procedure",
+            3,
+            "used before",
+        );
+        // a nested definition is another context
+        let nested = "procedure P() begin\n procedure Q() begin\n  output X\n end procedure\n global X\nend procedure";
+        assert_eq!(program(nested).len(), 1);
+        // the column of the error is the column of the name
+        let e = error("procedure P() begin\n output X\n global A, X\nend procedure");
+        assert_eq!((e.line, e.column), (3, Some(12)));
+    }
+
+    #[test]
+    fn global_at_the_top_level_and_twice_are_runtime_errors() {
+        assert_eq!(program("X = 1\nglobal X").len(), 2);
+        let twice = "procedure P() begin\n global X\n global X\nend procedure";
+        assert_eq!(program(twice).len(), 1);
+    }
+
+    // ----- positions -----
+
+    fn first_expression(source: &str) -> Expression {
+        let block = try_parse(source).unwrap();
+        match &block.0[0].kind {
+            StatementKind::Output(values) => values[0].clone(),
+            StatementKind::Execute(value) => value.clone(),
+            StatementKind::Assign { value, .. } => value.clone(),
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    fn position(expression: &Expression) -> (usize, usize) {
+        (expression.line, expression.column)
+    }
+
+    #[test]
+    fn statements_and_expressions_carry_their_columns() {
+        let block = try_parse("\n   X = 1").unwrap();
+        assert_eq!((block.0[0].line, block.0[0].column), (2, 4));
+
+        // `output 1 + 2 * 3`: the operators are at columns 10 and 14
+        let sum = first_expression("output 1 + 2 * 3");
+        assert_eq!(position(&sum), (1, 10));
+        let ExpressionKind::Binary(_, left, right) = &sum.kind else {
+            panic!("expected a binary expression");
+        };
+        assert_eq!(position(left), (1, 8));
+        assert_eq!(position(right), (1, 14));
+    }
+
+    #[test]
+    fn calls_and_method_calls_are_positioned_at_the_bracket_and_the_dot() {
+        let call = first_expression("output F(1)");
+        assert_eq!(position(&call), (1, 9));
+        let ExpressionKind::Call(callee, arguments) = &call.kind else {
+            panic!("expected a call");
+        };
+        assert_eq!(position(callee), (1, 8));
+        assert_eq!(position(&arguments[0]), (1, 10));
+
+        let method = first_expression("output A.size()");
+        assert_eq!(position(&method), (1, 9));
+    }
+
+    #[test]
+    fn unary_literals_and_constructors_are_positioned_at_their_first_token() {
+        assert_eq!(position(&first_expression("output  -1")), (1, 9));
+        assert_eq!(position(&first_expression("output Integer(\"1\")")), (1, 8));
+        assert_eq!(position(&first_expression("output (1, 2)")), (1, 8));
+        assert_eq!(position(&first_expression("output [1]")), (1, 8));
+        assert_eq!(position(&first_expression("output {}")), (1, 8));
+        // `X <-1` reads `<` followed by a unary `-` that is positioned at the `<-`
+        let comparison = first_expression("output X <-1");
+        let ExpressionKind::Binary(_, _, right) = &comparison.kind else {
+            panic!("expected a comparison");
+        };
+        assert_eq!(position(right), (1, 10));
+    }
+
+    #[test]
+    fn index_and_attribute_accesses_are_positioned_at_the_generated_token() {
+        // `A[0]` is `A.get(0)`: the lexer puts the generated `.` at the column of the `[`
+        let access = first_expression("output A[0]");
+        assert_eq!(position(&access), (1, 9));
     }
 }

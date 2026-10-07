@@ -16,7 +16,7 @@ source text ──lexer──▶ lines of tokens ──parser──▶ syntax tr
 
 Errors are reported as early as possible: everything that can be detected without running the program is reported by the lexer or the parser, before execution starts ([4.5](#45-static-checks)).
 
-The interpreter is run as `khollang code.txt`.
+The interpreter is run as `khol code.txt` ([5.6](#56-command-line-and-error-reporting)).
 
 ## 2. Internal names
 
@@ -45,7 +45,7 @@ struct Token {
 
 enum TokenKind {
     Keyword(Keyword),     // case already normalised: WHILE / While / while → Keyword::While
-    Type(BuiltinType),    // Integer, Float, String, Boolean, Array, LazyArray, ..., Tuple (reserved names)
+    Type(BuiltinType),    // Integer, Float, String, Boolean, Array, LazyArray, ..., Tuple, FunctionType, ProcedureType, Iterator (reserved names)
     Identifier(String),   // variables, functions, custom structures, internal #names
     Integer(i64),
     Float(f64),
@@ -68,7 +68,7 @@ enum TokenKind {
 - **Multi-word keywords** become single tokens: `end if` → `EndIf`, `end loop` → `EndLoop`, `end match` → `EndMatch`, `end function` → `EndFunction`, `end procedure` → `EndProcedure`, `end structure` → `EndStructure`, `else if` → `ElseIf`. An `end` that is not followed by `if`, `loop`, `match`, `function`, `procedure` or `structure` is an error.
 - **Word operators** (`not`, `and`, `or`, `xor`, `imp`, `iff`, `mod`, `div`, `pow`) become `Symbol` tokens, like `+`.
 - **Source characters**: lines end with `\n` or `\r\n`. Outside strings and comments, only ASCII letters, digits, `_`, space, tab and the symbols are allowed, so identifiers are ASCII only and any other character (`;`, `'`, `é`, ...) is an error. Strings and comments may contain any character.
-- **Built-in type names** are reserved ([syntax 4.1](syntax.md#41-identifiers)), so they become `Type` tokens. Custom structure names stay identifiers. The parser decides from the position whether an identifier is a structure type.
+- **Built-in type names** are reserved ([syntax 4.1](syntax.md#41-identifiers)), so they become `Type` tokens. The function and procedure types are named `FunctionType` and `ProcedureType` because `Function` and `Procedure` are spellings of the keywords `function` and `procedure`. Custom structure names stay identifiers. The parser decides from the position whether an identifier is a structure type.
 - **Comments** are removed.
 - **String literals**: the quotes are removed and escapes are resolved. An unknown escape is an error.
 - **Number literals** are `digits` or `digits.digits` and become `Integer` or `Float` tokens. Anything else that looks like a number is an error: `1.`, `.5`, `1.2.3`, `5.x`, `1A`. A `.` is allowed only as the attribute / method symbol, so a `.` next to a digit that is not part of `digits.digits` is an error, but `1.2.copy()` lexes. An Integer literal that does not fit in `i64` is an error, so `-9223372036854775808` cannot be written as a literal. A Float literal that overflows to infinity is not a lexer error: it is checked at execution like any other Float overflow.
@@ -190,7 +190,8 @@ Rust enums. Every statement carries its line number for error messages.
 ```rust
 struct Block(Vec<Statement>);
 
-struct Statement { line: usize, kind: StatementKind }
+// `line` and `column` are the position of the first token of the statement.
+struct Statement { line: usize, column: usize, kind: StatementKind }
 
 enum StatementKind {
     // declarations
@@ -223,7 +224,15 @@ struct Parameter { ty: Option<Type>, name: Name, default: Option<Expression> }
 // a variable or attribute name
 type Name = String;
 
-enum Expression {
+// Every expression knows its own position, so that an error can be created where it happens
+// and then just propagated ([5.1](#51-entities-execute-themselves)):
+//   Unary, Binary    the operator token
+//   Call             the `(`
+//   MethodCall       the `.` (for `get` / `set` generated from `[` or `.`: the column of that token, [3.3.5](#335-index-and-attribute-access))
+//   everything else  the first token of the expression
+struct Expression { kind: ExpressionKind, line: usize, column: usize }
+
+enum ExpressionKind {
     Integer(i64), Float(f64), String(String), Boolean(bool), None,
     Array(Vec<Expression>),                       // [...]
     Dictionary(Vec<(Expression, Expression)>),    // {...}
@@ -233,7 +242,7 @@ enum Expression {
     Binary(BinaryOperator, Box<Expression>, Box<Expression>),
     Call(Box<Expression>, Vec<Expression>),
     MethodCall(Box<Expression>, Name, Vec<Expression>),   // includes `get` and `set` ([3.3.5](#335-index-and-attribute-access))
-    Construct(Type, Vec<Expression>),             // Integer("1"), Array<Integer>(B)
+    Construct(Type, Vec<Expression>),             // Integer("1"), Array<Integer>(B), FunctionType(P, R)
 }
 
 enum UnaryOperator { Negate, Not, BitNot }
@@ -247,10 +256,15 @@ enum BinaryOperator {
 }
 
 // one variant per actual kind: `Array` is a `LazyArray`
-enum CollectionKind { LazyArray, StaticArray, DynamicArray, Stack, Queue, Set, Multiset }
+enum CollectionKind {
+    LazyArray, StaticArray, DynamicArray, Stack, Queue,
+    Set, Multiset, UnorderedSet, UnorderedMultiset,
+}
 
 enum Type {
     Integer, Float, String, Boolean,
+    FunctionType, ProcedureType,                               // no type arguments: no signature is recorded
+    Iterator(Option<Box<Type>>),                               // Iterator, Iterator<T>: no constructor
     Collection(CollectionKind, Option<Box<Type>>),             // Array, Array<T>, Stack<T>, ...
     Dictionary(Option<(Box<Type>, Box<Type>)>),                // Dictionary and Map
     Tuple(Option<Vec<Type>>),
@@ -299,7 +313,8 @@ The lexer and the parser report these errors before execution starts:
 - a function whose body contains no `return EXPR`;
 - the checks above are per **context**. Only a function or procedure starts a new context. `if` and loops do not. So a `break` in a function that is defined inside a loop is outside a loop, the `return` in a nested function or procedure belongs to that one, and a `return EXPR` in a nested definition does not count for the enclosing function;
 - parameters with defaults before required parameters, constant parameters;
-- a structure attribute named `copy`, `deep_copy`, `get` or `set`.
+- a structure attribute named `copy`, `deep_copy`, `get` or `set`;
+- `global X` / `nonlocal X` after a use or an assignment of *X* earlier in the same context ([syntax 12.5](syntax.md#125-global-and-nonlocal)). Nested blocks of the context count, nested definitions do not. `global` / `nonlocal` for a name that holds a structure is detected at runtime.
 
 Everything else (types, redeclarations, procedure calls inside expressions, wrong argument counts, ...) depends on runtime values, so it is a runtime error. Functions and procedures are values, so the parser cannot know what a call refers to.
 
@@ -319,10 +334,13 @@ impl Expression {
 enum Flow { Normal, Break, Continue, Return(Option<Value>) }
 ```
 
+- **Errors are created where they happen.** The lowest entity that knows a position builds the `Error` (line and column) and the callers just propagate it with `?`. A statement uses its own position, an expression uses its own ([4.1](#41-syntax-tree)). Operations on values that do not know a position (type fitting, equality, ordering, collection methods, ...) fail with a plain message. The expression that called them turns it into an `Error` at its position (for `get` / `set` generated from `x[i]`, that is the `[`). Errors from a nested call (the body of a called function) keep the position where they happened.
 - A `Block` executes its statements in order in a new scope. It stops as soon as one returns a `Flow` other than `Normal` and passes it up.
 - `Loop` consumes `Break` and `Continue`. A function or procedure call consumes `Return`.
 - **Expected type**: a literal `[...]`, `{...}` or `(...)` creates a different collection depending on where it is stored ([syntax 6.6](syntax.md#66-when-a-value-fits-a-type)). `StaticArray<Integer> S = [1, 2]` creates a StaticArray, but `A = [1, 2]` then `Array<Integer> B = A` is an error. So the declared type of the target (variable, parameter, attribute, element, function result) is passed down to `evaluate`. Without an expected type, a literal creates the untyped default ([syntax 5.5](syntax.md#55-collection-literal-)).
 - `AND`, `OR` and `IMP` evaluate their right operand only when the left one does not decide the result ([syntax 7.2](syntax.md#72-operators)).
+- **Type checking happens when the value arrives.** The expected type only decides which collection a literal creates. The check that a value fits the target ([syntax 6.6](syntax.md#66-when-a-value-fits-a-type)) is made by the target (variable, parameter, attribute, collection element, function result) once it has the value. For a method call, the receiver is evaluated first, and its element type is then the expected type of the arguments of `set`, `push`, `add`, `insert`, `enqueue`, and so on. For a call, the callee is evaluated first and then each argument with its parameter type.
+- **Calls.** A call statement may call a procedure. A procedure called anywhere else inside an expression is a runtime error. The statement kinds stay as in [4.1](#41-syntax-tree): an expression statement `Execute(Call(...))` is the only place where a procedure result may be taken. A call whose callee is a structure definition creates an instance. Method names are always built in: `X.m(...)` never calls a user function, even when an attribute is a function.
 
 ### 5.2 Values
 
@@ -330,6 +348,13 @@ enum Flow { Normal, Break, Continue, Return(Option<Value>) }
 - Integer arithmetic is checked: overflow is a runtime error. Division by zero is a runtime error for Integers and Floats.
 - Every Float result is checked: infinity and NaN are runtime errors. This covers Float overflow and results that are not real numbers, such as `(-8.0) pow 0.5`.
 - Primitive values (Integer, Float, String, Boolean, none) are copied. Non-primitive values (collections, tuples, structure instances, functions, procedures, structure definitions, iterators) are shared by reference (`Rc`, with `RefCell` for mutable ones) ([syntax 6.5](syntax.md#65-copying-and-sharing)).
+- **Value operations are defined once per kind**, each kind implementing its own version ([syntax 6.9](syntax.md#69-what-values-support)):
+  - `equals(a, b)`: compares the kinds first and returns `false` for different kinds. For the same kind it compares by the rules of [syntax 7.3](syntax.md#73-equality), and a kind without equality (function, procedure, structure definition, iterator) fails there. Everything that compares values (`=`, `!=`, `match`, `includes`, `contains`, `remove`, `has`, the elements of collections, dictionary lookups) uses it, so the error appears exactly when the comparison is reached.
+  - `compare(a, b)`: defined only for two Integers, two Floats, two Booleans or two Strings, and a runtime error otherwise. `Set` / `Multiset` use it and also require every element to have the type of the first one.
+  - `hash` and the key check: defined for Integer, Float (by its bits, `-0.0` and `0.0` are one key), Boolean, String and a Tuple of keys. A Float key is never NaN, so `equals` is total on keys.
+  - Collections never hash or order their elements except through these operations. `UnorderedSet` and `UnorderedMultiset` are plain sequences that are searched with `equals`.
+- **Cycles.** Equality, `output` / `String(X)`, hashing and every other recursive read of a value track the objects they are visiting (by `Rc` pointer). Reaching an object that is already being visited is a runtime error. `deep_copy` handles cycles with its memo, and `copy`, reads and writes never recurse, so they are not affected.
+- **Function and procedure values** hold the definition and the scope it was defined in ([5.4](#54-scopes)). `ProcedureType(F)` and `FunctionType(P, R)` ([syntax 6.7](syntax.md#67-type-casting)) create values that wrap another callable: the first runs *F* and drops the result, the second runs *P* and returns *R*, which was evaluated once when the constructor ran. The wrapper takes its parameters from the wrapped callable. A typed `FunctionType` / `ProcedureType` check only looks at the kind ([syntax 6.8](syntax.md#68-function-and-procedure-types)).
 - Collections and structure instances are copied only explicitly, with `copy()` (shallow) and `deep_copy()` (recursive) ([syntax 6.5.1](syntax.md#651-explicit-copies)).
 - `deep_copy()` works like Python's `deepcopy`. It keeps a memo that maps each original object (by `Rc` pointer) to its copy. An object that is reached again is taken from the memo instead of being copied again, so shared references and cycles are kept. Values without `deep_copy()` (functions, procedures, structure definitions, iterators) are shared.
 
@@ -345,23 +370,53 @@ Every iterable collection (arrays, Tuple, Set, Multiset, Stack, Queue, Dictionar
   - Set and Multiset sorted;
   - Stack bottom → top (the order the elements were pushed);
   - Queue front → back;
-  - Dictionary keys sorted.
-- The Dictionary is implemented as a hash map, so `iterator()` sorts its keys.
+  - UnorderedSet, UnorderedMultiset and Dictionary keys: **any order**. The language does not promise one, and keys are not sorted because not every key can be ordered. The implementation is free to use insertion order, and tests must not depend on it.
+- `I.next()` with no elements left is a runtime error.
 - What an iterator sees when its collection changes during iteration depends on each iterator's implementation. Index-based iterators over arrays naturally see values pushed to the end. The language does not guarantee this behaviour ([syntax 10.3.4](syntax.md#1034-for-each-loop)).
 - An iterator is a value with no type name ([5.2](#52-values)).
 
 ### 5.4 Scopes
 
 - A scope is one of: the global scope, a function scope (one per call), a block scope (one per block execution, one per loop iteration).
-- Every variable records its kind: constant, typed (with its `Type`), explicit untyped or implicit untyped ([syntax 8.1](syntax.md#81-the-four-kinds-of-variables)).
+- Every variable records its kind: constant, typed (with its `Type`), explicit untyped or implicit untyped ([syntax 8.1](syntax.md#81-the-four-kinds-of-variables)). Parameters are explicit (typed, or explicit untyped).
+- Defaults of parameters and structure attributes are evaluated once, when the definition executes, in the scope of the definition ([syntax 11.2](syntax.md#112-parameters), [14.1](syntax.md#141-defining)), and stored in the function or structure value.
+- `global X` / `nonlocal X` add a link entry to the function scope. The linked variable keeps its kind. Declaring a name that has a link is a redeclaration error ([syntax 12.4](syntax.md#124-declarations-redeclaration-and-shadowing)).
+- Structure names ([syntax 12.8](syntax.md#128-structure-names)): every function scope records the names that were looked up during the call and resolved to a structure definition of an outer scope. A `Structure` statement for a name in that set is a runtime error. Instances and typed collections refer to a structure by its **name**, and an instance fits a structure type when the names are equal.
 - Functions and procedures are closures ([syntax 12.7](syntax.md#127-definitions-are-values)): a function value holds a reference to the scope where it was defined. A call creates a function scope whose parent is that scope. This is what `nonlocal` and name lookup through enclosing functions use.
 - Reading a name looks it up through the local scopes, then the enclosing function scopes, then the global scope. Assigning to a name that is not in the local scopes declares a new local variable, which shadows the outer one from then on. Only `global` / `nonlocal` link a name to an outer variable for assignment ([syntax 12.3](syntax.md#123-assignment-and-implicit-declaration)).
 
 ### 5.5 Input and output
 
-For now, `input` reads standard input and `output` writes standard output directly. A web interface may come later. It is not part of the current scope, which is migrating `v1/interpreter`.
+For now, `input` reads standard input and `output` writes standard output directly. A web interface may come later. It is not part of the current scope, which is migrating `v1/interpreter`. `input` on exhausted standard input is a runtime error.
 
-### 5.6 Not in the current scope
+### 5.6 Command line and error reporting
+
+- `khol code.txt` runs the program. Without an argument, or with more than one, it prints a usage message to standard error, like standard command line tools do, and exits with a non-zero status:
+
+  ```
+  usage: khol <file>
+  ```
+
+- An unreadable or missing file is reported to standard error and also exits with a non-zero status.
+- An `Error` ([3.1](#31-output-format)) is printed to standard error with its `Display` form (`line N, column M: message`) and the exit status is non-zero. This holds for lexer, parser and runtime errors. A runtime error keeps everything the program already wrote to standard output.
+
+### 5.7 Choices where the syntax leaves behaviour unspecified
+
+The executor does the following where [syntax 16](syntax.md#16-unspecified-behaviour) leaves a choice. Programs must not rely on it.
+
+- **Unordered collections.** `UnorderedSet`, `UnorderedMultiset` and Dictionary keys are kept and iterated in insertion order.
+- **Floats** are written like Rust's `{:?}`, with `.0` added when the text has no decimal point (`1e16` is `1.0e16`).
+- **`input`.**
+  - An Integer or Float line that is out of range is a runtime error.
+  - An empty element in a collection (`[1,,2]`) is a runtime error. A Tuple may end with a comma (`(1,)`), and `(X)` without a comma is a one-element Tuple.
+  - A dictionary element without a top-level `:` and a key that is not a valid key are runtime errors.
+- **Structures.**
+  - A typed attribute without a default expression gets a new default of its type for every instance. Only a default expression is evaluated once.
+  - A structure cannot have a typed attribute of its own type (its name is not defined yet while its definition runs). Use an untyped attribute for linked structures.
+  - Errors in a structure definition are reported at the line of the `structure` statement, because attributes carry no position.
+- **`nonlocal X`** uses the nearest enclosing scope below the global one that has *X*, including the block scopes of the enclosing functions.
+- **Recursion.** The depth of a call of the program's functions and procedures is limited to 1,000,000, counting the first call, made at the top level, as depth 0. So 1,000,001 calls can be nested, and the next one is a runtime error ("the recursion is too deep"). Wrappers made by `FunctionType(...)` and `ProcedureType(...)` do not count, only the calls of the program's own definitions do. A function `DEPTH(N)` that recurses down to `N = 0` makes `N + 1` nested calls, so `DEPTH(1000000)` is the deepest that works. The program runs on a thread with an 8 GiB stack (a smaller one, down to 256 MiB, if the system refuses it). The memory is only used as deep as the program recurses. A recursion of 1,000,000 calls works in a release build: a call level takes about 1.6 KiB, and more inside blocks (about 4.4 KiB through a loop and two `if`s). A debug build uses several times more. A debug build has a smaller reach.
+
+### 5.8 Not in the current scope
 
 - **Limits** (V1's limits file) are left out for now and will be added later.
-- **Recursion depth** will be tested and decided once the interpreter works.

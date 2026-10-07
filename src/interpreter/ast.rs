@@ -1,5 +1,7 @@
 //! The syntax tree built by the parser ([design 4.1](../../.claude/docs/design.md)).
 
+use std::rc::Rc;
+
 /// The name of a variable, function, structure or attribute.
 pub type Name = String;
 
@@ -8,8 +10,9 @@ pub struct Block(pub Vec<Statement>);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Statement {
-    /// The source line, used in error messages.
+    /// The position of the first token of the statement, used in error messages.
     pub line: usize,
+    pub column: usize,
     pub kind: StatementKind,
 }
 
@@ -33,12 +36,13 @@ pub enum StatementKind {
         name: Name,
         return_type: Option<Type>,
         parameters: Vec<Parameter>,
-        body: Block,
+        /// Shared with the function values that the definition creates.
+        body: Rc<Block>,
     },
     Procedure {
         name: Name,
         parameters: Vec<Parameter>,
-        body: Block,
+        body: Rc<Block>,
     },
     Structure {
         name: Name,
@@ -79,8 +83,23 @@ pub struct Parameter {
     pub default: Option<Expression>,
 }
 
+/// An expression and its position, so that an error can be created where it happens.
+///
+/// The position is:
+/// - for `Unary` and `Binary`, the operator token;
+/// - for `Call`, the `(`;
+/// - for `MethodCall`, the `.` (for a `get` / `set` generated from `[` or `.`, the column of
+///   that token);
+/// - for everything else, the first token of the expression.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expression {
+pub struct Expression {
+    pub kind: ExpressionKind,
+    pub line: usize,
+    pub column: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpressionKind {
     Integer(i64),
     Float(f64),
     String(String),
@@ -150,6 +169,8 @@ pub enum CollectionKind {
     Queue,
     Set,
     Multiset,
+    UnorderedSet,
+    UnorderedMultiset,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -158,6 +179,12 @@ pub enum Type {
     Float,
     String,
     Boolean,
+    /// Any function. No signature is recorded.
+    FunctionType,
+    /// Any procedure. No signature is recorded.
+    ProcedureType,
+    /// `Iterator`, `Iterator<T>`. It has no constructor: only `X.iterator()` creates one.
+    Iterator(Option<Box<Type>>),
     /// `Array`, `Array<T>`, `Stack<T>`, ...
     Collection(CollectionKind, Option<Box<Type>>),
     /// `Dictionary` and `Map`, with the key and value types.

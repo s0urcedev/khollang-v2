@@ -128,7 +128,7 @@ Identifiers name variables, constants, functions, procedures, parameters, custom
 Valid: `X`, `total`, `MY_VAR`, `_tmp`, `A1`. Invalid: `1A`, `my-var`, `#X`.
 
 - The character `#` is not allowed anywhere in a program, except inside string literals and comments. (The interpreter uses names starting with `#` internally, so they can never clash with names in the program.)
-- Built-in type names are reserved and **cannot** be used as identifiers: `Integer`, `Float`, `String`, `Boolean`, `Array`, `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary`, `Map`, `Stack`, `Queue`, `Set`, `Multiset`, `Tuple`. Type names are case-sensitive, so other spellings (`integer`, `INTEGER`) are ordinary identifiers.
+- Built-in type names are reserved and **cannot** be used as identifiers: `Integer`, `Float`, `String`, `Boolean`, `Array`, `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary`, `Map`, `Stack`, `Queue`, `Set`, `Multiset`, `UnorderedSet`, `UnorderedMultiset`, `Tuple`, `FunctionType`, `ProcedureType`, `Iterator`. Type names are case-sensitive, so other spellings (`integer`, `INTEGER`) are ordinary identifiers.
 
 ### 4.2 Reserved words
 
@@ -240,10 +240,12 @@ Example: `output "She said \"hi\"\n\tand left"`.
 
 ### 6.2 Non-primitive types
 
-- Built-in collections: `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary` / `Map`, `Stack`, `Queue`, `Set`, `Multiset` ([section 13](#13-built-in-data-structures)).
+- Built-in collections: `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary` / `Map`, `Stack`, `Queue`, `Set`, `Multiset`, `UnorderedSet`, `UnorderedMultiset` ([section 13](#13-built-in-data-structures)).
 - `Tuple` ([13.9](#139-tuple)).
-- Custom structures: the name of a defined structure is a type ([section 14](#14-custom-structures)).
-- Functions, procedures and structure definitions are values too ([12.7](#127-definitions-are-values)), but they have no type name. They can be stored only in untyped variables.
+- `FunctionType` and `ProcedureType`: the types of function values and procedure values ([6.8](#68-function-and-procedure-types)).
+- Custom structures: the name of a defined structure is a type ([section 14](#14-custom-structures)). Instances can be stored in collections like any other value, and `Array<S>` is valid for a structure `S`.
+- `Iterator` and `Iterator<T>`: the type of iterators ([13.10](#1310-iterators)). Iterators can only be obtained from `X.iterator()`: there is no constructor `Iterator(...)`, and calling it is an error.
+- Structure definitions are values too ([12.7](#127-definitions-are-values)), but they have no type name. They can be stored only in untyped variables.
 
 Names separated by `/` are aliases for the same type: `Array` and `LazyArray` are the same type, and so are `Dictionary` and `Map`.
 
@@ -253,13 +255,13 @@ Every built-in collection and `Tuple` exists in an **untyped** and a **typed** f
 
 | Collection | Untyped form | Typed form |
 |---|---|---|
-| `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Stack`, `Queue`, `Set`, `Multiset` | `Array` | `Array<T>` |
+| `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Stack`, `Queue`, `Set`, `Multiset`, `UnorderedSet`, `UnorderedMultiset`, `Iterator` | `Array` | `Array<T>` |
 | `Dictionary` / `Map` | `Dictionary` | `Dictionary<K, T>` (keys of type *K*, values of type *T*) |
 | `Tuple` | `Tuple` | `Tuple<T1, T2, ...>` (one type per element, for **every** element) |
 
 - An untyped collection stores values of any type, mixed freely, including `none`: `Array A = [1, false, "a", none]`.
 - A typed collection stores only values that fit its element type(s) ([6.6](#66-when-a-value-fits-a-type)). Storing anything else is a runtime error. `none` never fits a type, so typed collections cannot contain `none`.
-- Type arguments can be any type, including typed collections, tuples and custom structures: `Array<Array<Integer>>`, `Dictionary<String, Tuple<Integer, Boolean>>`, `Set<Point>`.
+- Type arguments can be any type, including typed collections, tuples, `FunctionType`, `ProcedureType` and custom structures: `Array<Array<Integer>>`, `Dictionary<String, Tuple<Integer, Boolean>>`, `Array<Point>`, `Array<FunctionType>`. Whether a collection can hold a value also depends on what the value supports ([6.9](#69-what-values-support)): `Set<Point>` is valid as a type, but adding an instance to it is a runtime error.
 - Whitespace inside `< >` is optional: `Dictionary<String,Integer>` and `Dictionary< String, Integer >` are the same.
 - An untyped collection type and a typed one are **different types**: `Array` is not `Array<Integer>`, and `Array<Integer>` is not `Array<String>`. A value of one cannot be stored where the other is required. Conversion goes through constructors ([6.7](#67-type-casting)).
 
@@ -277,6 +279,9 @@ A typed declaration without a value ([8.4](#84-typed-variables)) gets the defaul
 | `Tuple` (untyped) | `()` |
 | `Tuple<T1, T2, ...>` | a tuple of the default values of *T1*, *T2*, ...: `Tuple<Integer, String>` → `(0, "")` |
 | a custom structure | a new instance with default attribute values ([14.3](#143-creating-instances)) |
+| `FunctionType` | a function with no parameters that does nothing and returns `none` |
+| `ProcedureType` | a procedure with no parameters that does nothing |
+| `Iterator` / `Iterator<T>` | an iterator with nothing to iterate over: `has_next()` is `false` and `next()` is an "iterator exhausted" error |
 
 ### 6.5 Copying and sharing
 
@@ -330,6 +335,10 @@ Wherever a type is declared (typed variables, typed parameters, typed function r
 | `Tuple` | an untyped Tuple |
 | `Tuple<T1, ..., Tn>` | a `Tuple<T1, ..., Tn>` object |
 | a custom structure `S` | an instance of `S` |
+| `FunctionType` | any function (a procedure does not fit) |
+| `ProcedureType` | any procedure (a function does not fit) |
+| `Iterator` | an untyped iterator, i.e. one over an untyped collection or a Tuple |
+| `Iterator<T>` | an `Iterator<T>` object (same type argument) |
 | any type | `none` **never** fits |
 
 **Literals** fit by their contents:
@@ -368,7 +377,7 @@ Values are converted **only explicitly**, by calling a type's constructor with t
 | | an Integer | the same value as a Float: `Float(2)` → `2.0` |
 | | a Boolean | `true` → `1.0`, `false` → `0.0` |
 | | a Float | the same Float |
-| `String(X)` | any value | the text of *X* as `output` would write it ([9.2](#92-output-write-values-to-standard-output)) |
+| `String(X)` | any printable value | the text of *X* as `output` would write it ([9.2](#92-output-write-values-to-standard-output)). A value that is not printable is a runtime error |
 | `Boolean(X)` | a String `true` / `false` (accepted spellings per [3.1](#31-the-not-case-sensitive-rule)) | that Boolean |
 | | a Boolean | the same Boolean |
 | | an Integer or a Float | `0` / `0.0` → `false`, any other value → `true` |
@@ -387,7 +396,66 @@ Any other argument is a runtime error: `Integer("abc")`, `Integer([1])`, `Float(
 - `StaticArray(L, B)` / `StaticArray<T>(L, B)`: a static array of length *L*, filled with *B*'s elements from index 0. *B* is optional. Positions not filled by *B* hold `none` (untyped) or *T*'s default value (typed).
 - `Dictionary(B)` / `Dictionary<K, T>(B)`: *B* must be a Dictionary. For the typed form, every key must fit *K* and every value must fit *T*.
 
+- The order of the elements taken from an `UnorderedSet` / `UnorderedMultiset` is unspecified ([13.11](#1311-unorderedset)).
+- Building a `Set` / `Multiset` from *B* adds the elements one by one, so each must support ordering and all must have the same type, otherwise it is a runtime error ([6.9](#69-what-values-support)). The same holds for `UnorderedSet(B)`: every element must support equality.
+- `Tuple(B)`, `Array(B)`, ... where *B* is already of the target kind is allowed: **every constructor accepts a value of its own type** and produces an object with the same content (a new object for collections, [6.5](#65-copying-and-sharing)).
+
+**Function and procedure constructors** ([6.8](#68-function-and-procedure-types))
+
+| Constructor | Result |
+|---|---|
+| `FunctionType(F)` | the function *F* (same content) |
+| `ProcedureType(P)` | the procedure *P* (same content) |
+| `ProcedureType(F)`, *F* a function | a procedure with the same parameters that runs *F* and ignores its result |
+| `FunctionType(P, R)`, *P* a procedure | a function with the same parameters that runs *P* and returns *R*. *R* is evaluated **once**, when the constructor is called |
+| `FunctionType(F, R)`, *F* a function | the same as `FunctionType(ProcedureType(F), R)`: *F* is run, its result is ignored and *R* is returned |
+
+Any other argument (for example `FunctionType(P)` without *R*, or a value that is not a function or procedure) is a runtime error.
+
 Custom structure constructors `S(A, B, ...)` create instances. They are not casts ([14.3](#143-creating-instances)).
+
+### 6.8 Function and procedure types
+
+- `FunctionType` and `ProcedureType` are ordinary type names. They can be used in declarations, parameters, attributes and as type arguments (`Array<FunctionType>`, `Dictionary<String, ProcedureType>`).
+- They have **no type arguments**: the type does not record the parameters or the return type. A function declared `function Integer F()` is simply a `FunctionType`. The interpreter checks the declared return type only when the function runs, and the program has to keep track of the signatures itself:
+
+  ```
+  function Integer F() begin
+      return 1
+  end function
+
+  Array<FunctionType> A = [F]
+  String S = A[0]()   // runtime error: an Integer does not fit String
+  ```
+
+- A function value and a procedure value are never converted automatically. Use `ProcedureType(F)` or `FunctionType(P, R)` ([6.7](#67-type-casting)).
+- Functions and procedures do not support equality or ordering ([6.9](#69-what-values-support)).
+
+### 6.9 What values support
+
+Different values support different operations, and collections use this to decide what they can hold.
+
+| Value | Equality (`=`, `match`, `includes`, ...) | Ordering (`<`, sorting) | Dictionary key |
+|---|---|---|---|
+| Integer, Float, Boolean, String | yes | yes | yes |
+| `none` | yes | no | no |
+| Tuple | yes (element by element) | no | yes, if every element is itself a valid key |
+| arrays, `Stack`, `Queue`, sets, `Dictionary`, structure instances | yes (recursive, [7.3](#73-equality)) | no | no |
+| Function, Procedure, structure definition, iterator | **no** | no | no |
+
+- **Ordering** covers exactly two Integers, two Floats, two Booleans (`false` < `true`) and two Strings (lexicographic by Unicode code point). Every other `<`, `>`, `<=`, `>=` is a runtime error. Integers and Floats cannot be ordered against each other.
+- "No equality" does not make `=` fail everywhere: the types are compared first. Values of different kinds are never equal. Only when both values are of the same kind and that kind has no equality is it a runtime error ([7.3](#73-equality)).
+- The value-support rules decide where a value can be stored:
+
+  | Collection | Needs from its elements |
+  |---|---|
+  | `Set`, `Multiset` | ordering, and all elements have the same type (so only Integers, only Floats, only Booleans or only Strings) |
+  | `UnorderedSet` | equality (no Functions, Procedures, ...) |
+  | `UnorderedMultiset` | nothing: it can hold any value, including Functions and Procedures |
+  | arrays, `Stack`, `Queue`, `Dictionary` values, `Tuple` | nothing |
+  | `Dictionary` keys | being a valid key |
+
+  Adding a value that does not meet the requirement is a runtime error.
 
 ## 7. Expressions
 
@@ -414,10 +482,10 @@ In an expression, a built-in type name immediately followed by `<` starts a type
 |---|---|---|
 | `=` / `==` | equal | any |
 | `!=` / `<>` | not equal | any |
-| `>` | greater | both of the same type |
-| `>=` | greater or equal | both of the same type |
-| `<` | less | both of the same type |
-| `<=` | less or equal | both of the same type |
+| `>` | greater | two Integers, two Floats, two Booleans or two Strings ([6.9](#69-what-values-support)) |
+| `>=` | greater or equal | the same |
+| `<` | less | the same |
+| `<=` | less or equal | the same |
 | `NOT` | logical NOT; unary | a Boolean |
 | `AND` | logical AND | two Booleans |
 | `OR` | logical OR | two Booleans |
@@ -455,7 +523,7 @@ Notes:
 - An Integer result that does not fit in a signed 64-bit integer (from `-9223372036854775808` to `9223372036854775807`) is a runtime error.
 - An Integer literal that does not fit in `i64` is an error. Negative numbers are a unary `-` applied to a literal, so the literal `9223372036854775808` is an error and the smallest Integer cannot be written as a literal: write `-9223372036854775807 - 1`.
 - Comparing values of **different types** for equality is not an error. See [7.3](#73-equality) for exactly when two values are equal.
-- Ordering (`<`, `>`, `<=`, `>=`) between values of different types is a runtime error.
+- Ordering (`<`, `>`, `<=`, `>=`) of anything other than two values from the table above (different types, collections, tuples, `none`, structure instances, functions, ...) is a runtime error.
 - Inside an expression, `<-` is never assignment: it is read as `<` followed by a unary `-`. `if X<-1 then` means `if X < -1 then`.
 - Comparisons cannot be chained: `A < B < C` and `A = B = C` are errors. Write `(A < B) AND (B < C)`.
 
@@ -498,19 +566,23 @@ Operator precedence follows Python. From the **highest** (binds tightest) to the
 |---|---|
 | two Integers, two Floats, two Strings or two Booleans | they have the same value |
 | `none` and `none` | always |
-| values of different primitive types, `none` and any other value, or a primitive and a non-primitive value | never (`1 = "1"` and `1 = 1.0` are `false`) |
+| values of different kinds: different primitive types, `none` and any other value, a primitive and a non-primitive value, a Function and a Procedure, a function and anything that is not a function, ... | never (`1 = "1"` and `1 = 1.0` are `false`), **even when one of the kinds does not support equality** (`F = 1` is `false` for a function `F`) |
 | two arrays (`LazyArray`, `StaticArray`, `DynamicArray`, in any combination) | same length and equal elements in the same order |
 | two Stacks / two Queues | equal elements in the same natural order (bottom → top / front → back) |
 | two Sets or two Multisets | equal values in sorted order |
+| two UnorderedSets | same size, and every value of one is equal to a value of the other (order ignored) |
+| two UnorderedMultisets | the same values, each present the same number of times (order ignored) |
 | two Dictionaries | the same keys, each mapped to equal values |
 | two Tuples | same length and equal elements in the same order |
 | two instances of the **same** custom structure | every attribute of one is equal to the same attribute of the other |
-| two collections of **different kinds** (e.g. a Set and a Stack, an Array and a Tuple) | never, even with the same elements |
+| two collections of **different kinds** (e.g. a Set and a Stack, a Set and an UnorderedSet, an Array and a Tuple) | never, even with the same elements |
 | instances of **different** custom structures | never, even with the same attribute names and values |
+| two Functions, two Procedures, two structure definitions or two iterators | **runtime error**: these kinds do not support equality ([6.9](#69-what-values-support)) |
 
-- Elements and attributes are compared recursively with the same rules.
+- Equality is one operation, used everywhere a program compares values: `=`, `!=`, `match`, `includes` / `contains`, `remove`, `has`, and the elements of collections. The kinds of the two values are compared first. Only when they are the same kind is the comparison performed, and a kind without equality raises a runtime error at that moment, not earlier. So `[F] = [1, 2]` is `false` (different lengths), `[F] = [G]` is a runtime error (the elements are compared), and so is `F = G`.
+- Elements and attributes are compared recursively with the same rules. A collection that contains itself (directly or through other values) is detected when it is compared, and that is a runtime error.
 - Typed and untyped forms, and different type arguments, do not matter. Only the values do.
-- The three array kinds count as the same kind, because they store values the same way and differ only in how their size changes.
+- The three array kinds count as the same kind, because they store values the same way and differ only in how their size changes. No other two kinds do.
 
 ```
 Array<Integer> A = [1, 2]
@@ -622,7 +694,7 @@ T X
 ```
 
 - Declares a typed variable *X* of type *T*.
-- *T* can be `Integer`, `Float`, `String`, `Boolean`, any collection type (typed or untyped, [6.3](#63-untyped-and-typed-collections)), any `Tuple` type, or the name of a custom structure.
+- *T* can be `Integer`, `Float`, `String`, `Boolean`, `FunctionType`, `ProcedureType`, `Iterator`, any collection type (typed or untyped, [6.3](#63-untyped-and-typed-collections)), any `Tuple` type, or the name of a custom structure.
 - With `= Y`, the value *Y* must fit *T* ([6.6](#66-when-a-value-fits-a-type)). Without it, *X* gets the default value of *T* ([6.4](#64-default-values)).
 - Every later assignment to *X* must fit *T*, otherwise it is a runtime error. A typed variable can never hold `none`.
 - The type check applies to the variable's own value. For untyped collections it does not restrict the contents (`Array A` can hold `[1, "a"]`). For typed collections, the contents are checked by the collection itself ([6.3](#63-untyped-and-typed-collections)).
@@ -680,7 +752,7 @@ X <- Y
 input X
 ```
 
-- Reads **exactly one line** from standard input and stores the resulting value in the variable *X*.
+- Reads **exactly one line** from standard input and stores the resulting value in the variable *X*. If standard input has no more lines, it is a runtime error.
 - *X* is a plain variable name. What happens depends on *X*:
 
   | *X* is... | Behaviour |
@@ -698,6 +770,8 @@ Before interpretation:
 2. Empty lines are **not** skipped. An empty line is read like any other line.
 3. Escape sequences `\"`, `\\`, `\n`, `\t` (the same set as in [string literals](#52-string)) are processed **anywhere in the line**, whether or not the line is quoted. Any other backslash sequence is a runtime error.
 4. A line is **quoted** if it starts and ends with an unescaped `"`.
+
+An escaped character stays "escaped" for the rest of the processing, at every nesting level of a collection: an escaped quote `\"` is an ordinary character. It does not make an element quoted and does not start or end a string when the line is split. Inside a quoted string (at any level), commas, brackets and colons do not split.
 
 #### 9.1.2 Automatic type detection
 
@@ -759,7 +833,7 @@ After [pre-processing](#911-line-pre-processing), the line is converted to the v
 | `Tuple<T1, ..., Tn>` | `(...)` with exactly *n* elements, detected automatically, each fitting its type | `Tuple<T1, ..., Tn>` |
 
 - Elements are **not converted**: with `Array<String> A`, the input `[1, 2]` is a runtime error because `1` and `2` are detected as Integers. The input `["1", "2"]` works.
-- A typed variable of any other type (`StaticArray`, `DynamicArray`, `Stack`, `Queue`, `Set`, `Multiset`, their typed forms, or a custom structure) cannot be an input target. That is an error.
+- A typed variable of any other type (`StaticArray`, `DynamicArray`, `Stack`, `Queue`, `Set`, `Multiset`, `UnorderedSet`, `UnorderedMultiset`, their typed forms, `FunctionType`, `ProcedureType`, `Iterator`, or a custom structure) cannot be an input target. That is an error.
 
 Examples: with `String S`, the line `1` gives String `1`. With `Integer N`, the line `abc` is a runtime error.
 
@@ -772,7 +846,14 @@ output X, Y, Z, ...
 - Writes the values of the expressions *X*, *Y*, *Z*, ... joined by **a single space**.
 - At least one expression is required. Each can be any expression of any type, with no casting needed.
 - Each `output` statement writes exactly **one line**.
-- A String is written as its contents. A Float is always written with a decimal point, even when it is whole: `output 4 / 2` writes `2.0`. The rest of the text format (other Float details, Booleans, `none`, collections, tuples and structure instances) is unspecified.
+- The text format is simple and Python-like:
+  - An Integer is written in decimal. A Float is always written with a decimal point, even when it is whole: `output 4 / 2` writes `2.0` (other Float details, such as exponents for very large or small values, are unspecified).
+  - A Boolean is written `true` / `false` and `none` is written `none`.
+  - A String is written as its contents. Inside a collection or a tuple, a String is written in double quotes, without escaping.
+  - Arrays, `Stack`, `Queue`, `Set`, `Multiset`, `UnorderedSet` and `UnorderedMultiset` are written as `[A, B, C]`, a Dictionary as `{K: V, K2: V2}` and a Tuple as `(A, B)` (`(A,)` for one element, `()` for none). The elements are separated by `, `.
+  - The order for `Stack` is bottom → top and for `Queue` front → back. For an `UnorderedSet`, an `UnorderedMultiset` and a Dictionary the order is unspecified ([13.10](#1310-iterators)).
+  - Structure instances, functions, procedures and iterators are **not printable**: writing one, directly or inside a collection, is a runtime error.
+  - A collection that contains itself is detected, and writing it is a runtime error.
 
 ```
 output "Sum:", A + B
@@ -790,6 +871,8 @@ S.push(10)           // method call
 ```
 
 Any other expression is allowed too (`1 + 2`), but it only has an effect if evaluating it fails or calls something.
+
+A procedure can be called only as a whole statement of this form. A procedure call anywhere inside a larger expression (`1 + P()`, `X = P()`, an argument) is a runtime error ([section 11](#11-functions-and-procedures)). In short, every statement is a declaration, an assignment, one of the keyword statements, a procedure call, or an expression.
 
 ## 10. Control flow
 
@@ -950,7 +1033,7 @@ end loop
 - The two forms are equivalent. The keyword `for` is optional.
 - Runs the body once for every element of *B*, with *A* set to that element.
 - *B* is evaluated **once**, before the first iteration.
-- *B* can be any array (`LazyArray`, `StaticArray`, `DynamicArray`), a `Tuple`, `Set`, `Multiset`, `Stack`, `Queue` or `Dictionary` / `Map`. For a Dictionary, *A* is set to each **key**. Any other value is a runtime error.
+- *B* can be any array (`LazyArray`, `StaticArray`, `DynamicArray`), a `Tuple`, `Set`, `Multiset`, `UnorderedSet`, `UnorderedMultiset`, `Stack`, `Queue` or `Dictionary` / `Map`. For a Dictionary, *A* is set to each **key**. Any other value is a runtime error.
 - The elements are visited in the order of *B*'s iterator ([13.10](#1310-iterators)).
 - The loop is built on *B*'s iterator: it is the same as calling `B.iterator()` and then `next()` while `has_next()` is `true`. If the body changes *B*, whether the loop sees the change depends on the collection (e.g. values pushed to the end of a DynamicArray are visited). **Do not rely on this.** To change *B* in the loop, iterate over a copy: `loop for A in B.copy() do`.
 - The loop variable *A* follows the same rules as the for loop variable ([10.3.3](#1033-for-loop)), except that a typed *A* must fit every element (a runtime error otherwise). In particular, if *A* was not declared before the loop, it does not exist after it.
@@ -1028,8 +1111,8 @@ Each parameter is one of:
 - Typed and untyped parameters can be mixed: `function F(Integer A, B, String C = "x") begin`.
 - Parameters **cannot** be constants.
 - Parameters with defaults must come **after** all required parameters (defaults are given for the last *N* parameters).
-- Default values are evaluated **on every call** that does not supply that argument (not once at definition time).
-- Inside the body, parameters are variables of the function's scope: untyped parameters can be reassigned freely, and typed parameters only with values that fit their type.
+- Default values are evaluated **once, when the definition runs**, in the scope of the definition (not on each call). A typed parameter's default must fit its type, otherwise it is a runtime error at that moment. Every call that does not supply the argument gets that same value. As in Python, a non-primitive default (`A = []`) is therefore **shared** by all those calls.
+- Inside the body, parameters are variables of the function's scope: untyped parameters can be reassigned freely, and typed parameters only with values that fit their type. Parameters are **explicit** variables (an untyped parameter is an explicit untyped variable), so `let X = 1` inside the body of a function that has a parameter `X` is a redeclaration error ([12.4](#124-declarations-redeclaration-and-shadowing)).
 
 ```
 function Integer POWER(Integer BASE, Integer EXP = 2) begin
@@ -1078,6 +1161,8 @@ return
 - Reaching `end procedure` ends the procedure normally.
 
 `return` outside any function or procedure is an error.
+
+A procedure call is allowed only as a whole statement ([9.3](#93-expression-statements)). Anywhere else, evaluating it is a runtime error. A procedure can still be stored, passed and returned like any value ([12.7](#127-definitions-are-values)).
 
 ### 11.5 Examples
 
@@ -1197,7 +1282,8 @@ end function
 ```
 
 - Running the same declaration again in a **fresh** scope is not a redeclaration (e.g. a declaration inside a loop body runs once per iteration, each time in a new scope, [10.3](#103-loops)).
-- Declaring inside a function or procedure a name that exists in an outer function or the global scope is allowed and shadows it.
+- Declaring inside a function or procedure a name that exists in an outer function or the global scope is allowed and shadows it, **unless** the name was declared `global` / `nonlocal` in that function ([12.5](#125-global-and-nonlocal)): then assignment is fine, but a declaration of that name (`let`, `const`, a typed declaration, or a definition) is a redeclaration error.
+- Structures follow an additional rule ([12.8](#128-structure-names)).
 
 ### 12.5 `global` and `nonlocal`
 
@@ -1212,6 +1298,13 @@ nonlocal X, Y, ...
 - `nonlocal X` makes *X* refer to the variable *X* in the **nearest enclosing function or procedure scope** (the scopes where the current function was defined). The global scope is excluded.
 - Each declaration can list one or more comma-separated names.
 - The referred variable keeps its kind: assigning to a global constant is still an error, and assigning to a global typed variable is still type-checked.
+- As in Python, `global X` / `nonlocal X` must come **before** every use or assignment of *X* in the same function or procedure (nested blocks of that function count, nested definitions do not). A use or assignment of *X* on an earlier line is an error, reported before the program runs.
+- `global` and `nonlocal` cannot be used for a name that holds a structure definition ([12.8](#128-structure-names)).
+- The following are runtime errors, raised when the `global` / `nonlocal` statement runs:
+  - `global X` when no global *X* exists, and `nonlocal X` when no enclosing function or procedure scope has *X* (the nearest one that has *X* is used);
+  - `global` / `nonlocal` at the top level;
+  - declaring the same name twice in the function: `global X` twice, `nonlocal X` twice, `global X` then `nonlocal X`, or the other way round;
+  - a name that is already declared in the local scopes (for example a parameter of the function).
 
 ```
 Integer COUNTER = 0
@@ -1294,6 +1387,34 @@ A function, procedure or structure definition behaves like **declaring a variabl
   output C() // outputs 2
   ```
 
+### 12.8 Structure names
+
+A structure name behaves like any variable name (it is shadowed by a new local one, [12.3](#123-assignment-and-implicit-declaration)), with one extra rule so that a name never means two different structures within one call:
+
+- Inside a function or procedure call, if a structure name *N* has **already been used** during this call and resolved to a structure of an outer scope, then defining a local `structure N` in that call is an error. Using a name means any lookup of it: as a type (`Array<N>`, `N P`), as a constructor (`N(...)`) or as a value. The nested blocks of the call count as part of it.
+- If *N* was never used before the definition, the local definition is allowed and shadows the outer one for the rest of the call (and the block).
+- The check happens at run time, for the lookups that actually executed.
+- It applies only to structures. Ordinary variables, functions and procedures follow [12.3](#123-assignment-and-implicit-declaration) and [12.4](#124-declarations-redeclaration-and-shadowing).
+
+```
+structure X has
+    A = 1
+end structure
+
+function F() begin            // fine: X is not used before the local definition
+    structure X has
+        B = 1
+    end structure
+end function
+
+function G() begin
+    Array<X> A                // uses the outer X
+    structure X has           // error: X was already used in this call
+        B = 1
+    end structure
+end function
+```
+
 ## 13. Built-in data structures
 
 General rules:
@@ -1308,7 +1429,18 @@ General rules:
 - Index-based reading and writing use `X[I]` and `X[I] = Y`, which are `X.get(I)` and `X.set(I, Y)` ([7.4](#74-index-and-attribute-access)). Any assignment form works (`X[I] := Y`, `X[I] <- Y`).
 - Values added to a typed collection (by assignment, `push`, `add`, `insert`, `enqueue`, ...) must fit its element type. Otherwise it is a runtime error.
 - Where an element position has no value yet (gaps in a LazyArray, initial elements of a StaticArray), it holds `none` in an untyped collection and the element type's default value ([6.4](#64-default-values)) in a typed one.
-- Every collection (13.1–13.9) has the copy methods `X.copy()` and `X.deep_copy()` ([6.5](#65-copying-and-sharing)).
+- Every collection (13.1–13.9, 13.11, 13.12) has the copy methods `X.copy()` and `X.deep_copy()` ([6.5](#65-copying-and-sharing)).
+- Only the methods listed in the tables exist. Calling any other method on a value is a runtime error. In particular, `Stack` and `Queue` have no `get` / `set` (no indexing), `Set` / `Multiset` have `get` but no `set`, and `Tuple` has `get` but no `set`.
+- Size: `size()` exists on every collection. `length()` is an alias of `size()` only on arrays, `Stack`, `Queue` and `Tuple`. Sets, multisets and dictionaries have only `size()`.
+- What a value can be stored in a collection depends on what it supports ([6.9](#69-what-values-support)): `Set` / `Multiset` need ordered values of one type, `UnorderedSet` needs values with equality, and `Dictionary` keys must be valid keys.
+- **Invalid operations** are runtime errors, with these rules:
+  - Reading a `LazyArray` at an index beyond its length gives `none` (untyped) or the element type's default value (typed). Writing beyond its length grows it.
+  - Any **negative index** is an "index out of range" error on every array, in reads and in writes.
+  - An index beyond the length is an "index out of range" error on `StaticArray`, `DynamicArray`, `Tuple`, `Set` and `Multiset`, in reads and in writes.
+  - Reading a missing `Dictionary` key is a "missing key" error.
+  - `pop`, `dequeue` and `remove` on a structure that has nothing to remove (empty, or a value that is not present) are a "no items to remove" error.
+  - `next()` on an iterator with no elements left is an "iterator exhausted" error.
+  - Equality, ordering and hashing happen as described in [6.9](#69-what-values-support) and [7.3](#73-equality). A collection that contains itself is detected when it is compared, written, converted with `String(X)`, or used as a key. That is a runtime error. `copy()`, `deep_copy()` and simple reads and writes are not affected.
 
 ### 13.1 `Array` / `LazyArray`
 
@@ -1348,9 +1480,9 @@ A dynamic array. Its length does not grow automatically on indexing, but methods
 | `X[I] = Y` | set the element at index *I* to *Y* |
 | `X.size()` / `X.length()` | get the length |
 | `X.push(Y)` | add *Y* at the end |
-| `X.insert(I, Y)` | insert *Y* at position *I* |
-| `X.pop()` | remove the element at the end |
-| `X.remove(I)` | remove the element at position *I* |
+| `X.insert(I, Y)` | insert *Y* at position *I* (`0` to the length; any other index is an "index out of range" error) |
+| `X.pop()` | remove the element at the end and return it |
+| `X.remove(I)` | remove the element at position *I* and return it (an index out of range is an "index out of range" error) |
 
 ### 13.4 `Dictionary` / `Map`
 
@@ -1361,8 +1493,13 @@ A dictionary (map) from keys to values.
 | `Dictionary X` / `Map X` / `Dictionary<K, T> X` / `Map<K, T> X` | declare *X* as an empty dictionary |
 | `Dictionary(B)` / `Map(B)` / `Dictionary<K, T>(B)` / `Map<K, T>(B)` | constructor with contents copied from Dictionary *B* ([6.7](#67-type-casting)). *B* is optional |
 | `{A: X, B: Y, C: Z, ...}` | literal form ([5.6](#56-dictionary-literal-)) |
-| `X[K]` | get the value for key *K* |
+| `X[K]` | get the value for key *K* (a missing key is an error) |
 | `X[K] = Y` | set the value for key *K* to *Y* |
+| `X.size()` | get the number of keys |
+| `X.has(K)` | `true` if the dictionary has the key *K* |
+
+- Keys must be valid keys ([6.9](#69-what-values-support)): Integers, Floats, Booleans, Strings and Tuples whose elements are valid keys. Using any other value as a key is a runtime error. For a typed `Dictionary<K, T>` the key must also fit *K*.
+- Keys are hashed and compared with the value equality ([7.3](#73-equality)). `1` and `1.0` are different keys.
 
 ### 13.5 `Stack`
 
@@ -1398,12 +1535,15 @@ A set of unique values, kept in sorted order.
 |---|---|
 | `Set X` / `Set<T> X` | declare *X* as an empty set |
 | `Set(B)` / `Set<T>(B)` | constructor with initial contents copied from collection *B* (duplicates are dropped). *B* is optional |
-| `X[I]` | get the value at index *I* **in sorted order** |
+| `X[I]` | get the value at index *I* **in sorted order** (there is no `X[I] = Y`) |
 | `X.is_empty()` | `true` if the set is empty |
-| `X.size()` / `X.length()` | get the number of values |
+| `X.size()` | get the number of values |
 | `X.add(Y)` | add *Y*. Only values not already present are added |
-| `X.includes(Y)` | `true` if the set contains *Y* |
-| `X.remove(Y)` | remove *Y* |
+| `X.includes(Y)` / `X.contains(Y)` | `true` if the set contains *Y* (`contains` is an alias of `includes`) |
+| `X.remove(Y)` | remove *Y* (a value that is not present is a "no items to remove" error) |
+
+- The values must support ordering and have the **same type** ([6.9](#69-what-values-support)). Adding a value that cannot be ordered, or whose type differs from the values already in the set (an Integer next to a String, or next to a Float), is a runtime error at that `add`. For a set built from a literal or a constructor, the same check applies to each element.
+- Strings are ordered lexicographically by Unicode code point, Booleans as `false` < `true`.
 
 To get the values as another collection, use a constructor ([6.7](#67-type-casting)): `Array(X)` gives the values in sorted order.
 
@@ -1415,12 +1555,14 @@ Like `Set`, but the same value can be present more than once.
 |---|---|
 | `Multiset X` / `Multiset<T> X` | declare *X* as an empty multiset |
 | `Multiset(B)` / `Multiset<T>(B)` | constructor with initial contents copied from collection *B*. *B* is optional |
-| `X[I]` | get the value at index *I* **in sorted order** |
+| `X[I]` | get the value at index *I* **in sorted order** (there is no `X[I] = Y`) |
 | `X.is_empty()` | `true` if the multiset is empty |
-| `X.size()` / `X.length()` | get the number of values |
+| `X.size()` | get the number of values |
 | `X.add(Y)` | add *Y* (duplicates are kept) |
-| `X.includes(Y)` | `true` if the multiset contains *Y* |
-| `X.remove(Y)` | remove *Y* |
+| `X.includes(Y)` / `X.contains(Y)` | `true` if the multiset contains *Y* (`contains` is an alias of `includes`) |
+| `X.remove(Y)` | remove one occurrence of *Y* (a value that is not present is a "no items to remove" error) |
+
+- The same ordering and same-type rules as for `Set` apply to the values.
 
 To get the values as another collection, use a constructor ([6.7](#67-type-casting)): `Array(X)` gives the values in sorted order.
 
@@ -1437,7 +1579,8 @@ A fixed sequence of values. A tuple is **immutable**: its length and its element
 | `X[I]` | get the element at index *I* |
 | `X.size()` / `X.length()` | get the number of elements |
 
-- `X[I] = Y` is an error. A tuple has no methods that change it.
+- `X[I] = Y` is an error. A tuple has no `set` and no methods that change it.
+- A tuple supports equality but not ordering ([6.9](#69-what-values-support)), so it cannot be stored in a `Set` or `Multiset` (use `UnorderedSet` / `UnorderedMultiset`). It can be a `Dictionary` key if all its elements are valid keys.
 - A typed tuple type gives a type for **every** element: `Tuple<Integer, Boolean, String>` has exactly three elements.
 - Immutability applies to the tuple's own slots only. A non-primitive element can still change its contents:
 
@@ -1465,10 +1608,55 @@ The iterator visits the elements in this order:
 | `Set`, `Multiset` | sorted order |
 | `Stack` | the order the elements were pushed (bottom → top) |
 | `Queue` | front → back |
-| `Dictionary` / `Map` | the **keys**, in sorted order |
+| `UnorderedSet`, `UnorderedMultiset` | **unspecified**: any order. Do not rely on it |
+| `Dictionary` / `Map` | the **keys**, in **unspecified** order. Do not rely on it |
 
-- An iterator has no type name, so it can be stored only in untyped variables.
+- **Type.** An iterator has the type `Iterator` or `Iterator<T>`, the same form as the collection it comes from: `X.iterator()` on an untyped collection gives an untyped `Iterator`, and on a typed `C<T>` gives an `Iterator<T>`. For a `Dictionary<K, T>` it is `Iterator<K>` (the keys). For a `Tuple` it is **always an untyped** `Iterator`, also for `Tuple<T1, ..., Tn>`, because the element types differ. An untyped and a typed iterator are different types ([6.3](#63-untyped-and-typed-collections)).
+- **No constructor.** The only way to get an iterator is `X.iterator()`. `Iterator(...)` and `Iterator<T>(...)` cannot be called (an error). A declaration without a value is allowed (`Iterator I`, `Iterator<Integer> J`): it holds an iterator with nothing to iterate over, so `I.has_next()` is `false` and `I.next()` is an "iterator exhausted" error.
+- **Methods.** An iterator has only `has_next()` and `next()`: no `copy`, `deep_copy`, `get`, `set` or `iterator`. A for-each loop needs an iterable collection, not an iterator (`loop for A in I` is a runtime error).
 - Whether an iterator sees changes made to its collection after it was created depends on the collection. Do not rely on it.
+- `I.next()` when no elements are left is a runtime error ("iterator exhausted"). For `Iterator<T>`, `next()` returns a value that fits *T*.
+- Iterators are shared by reference ([6.5](#65-copying-and-sharing)) and do not support equality ([6.9](#69-what-values-support)).
+- Iterators cannot be stored in a `Set`, `Multiset` or `UnorderedSet`, and cannot be an input target. They can be stored anywhere else ([6.9](#69-what-values-support)).
+
+### 13.11 `UnorderedSet`
+
+A set of unique values with **no order**. It stores any value that supports equality, including collections, tuples and structure instances. It cannot be indexed.
+
+| Syntax | Meaning |
+|---|---|
+| `UnorderedSet X` / `UnorderedSet<T> X` | declare *X* as an empty unordered set |
+| `UnorderedSet(B)` / `UnorderedSet<T>(B)` | constructor with initial contents copied from collection *B* (duplicates are dropped). *B* is optional |
+| `X.is_empty()` | `true` if the set is empty |
+| `X.size()` | get the number of values |
+| `X.add(Y)` | add *Y*. Only values not already present (by value equality, [7.3](#73-equality)) are added |
+| `X.includes(Y)` / `X.contains(Y)` | `true` if the set contains a value equal to *Y* |
+| `X.remove(Y)` | remove the value equal to *Y* (a value that is not present is a "no items to remove" error) |
+| `X.iterator()` | get an iterator ([13.10](#1310-iterators)) |
+
+- There is no `get` and no `set`, and no `X[I]`.
+- Adding a Function, a Procedure or any other value without equality is a runtime error ([6.9](#69-what-values-support)).
+- The order of the values (when iterating, in a for-each loop, in `Array(X)`, in `output`) is **unspecified**. Programs must not rely on it.
+- No literal form of its own: a `[...]` literal fits it where the value must fit an `UnorderedSet`.
+
+### 13.12 `UnorderedMultiset`
+
+Like `UnorderedSet`, but the same value can be present more than once, and it can hold **any** value, including Functions and Procedures.
+
+| Syntax | Meaning |
+|---|---|
+| `UnorderedMultiset X` / `UnorderedMultiset<T> X` | declare *X* as an empty unordered multiset |
+| `UnorderedMultiset(B)` / `UnorderedMultiset<T>(B)` | constructor with initial contents copied from collection *B*. *B* is optional |
+| `X.is_empty()` | `true` if the multiset is empty |
+| `X.size()` | get the number of values |
+| `X.add(Y)` | add *Y* (duplicates are kept) |
+| `X.includes(Y)` / `X.contains(Y)` | `true` if the multiset contains a value equal to *Y* |
+| `X.remove(Y)` | remove one value equal to *Y* (a value that is not present is a "no items to remove" error) |
+| `X.iterator()` | get an iterator ([13.10](#1310-iterators)) |
+
+- There is no `get` and no `set`.
+- Values are compared with the value equality ([7.3](#73-equality)). `includes`, `contains` and `remove` on a multiset that holds values without equality (Functions, Procedures) raise the equality error as soon as they compare such a value. `add`, `size`, `is_empty`, iteration, `copy` and `deep_copy` work with any value.
+- The order is **unspecified**.
 
 ## 14. Custom structures
 
@@ -1498,6 +1686,7 @@ end structure
 - `copy`, `deep_copy`, `get` and `set` cannot be attribute names, because every instance has the methods `copy()`, `deep_copy()` ([14.4](#144-copying-instances)), `get()` and `set()` ([7.4](#74-index-and-attribute-access)). Using them is an error.
 - Typed attributes are type-checked on **every** assignment, including the arguments of the constructor `NAME(...)`.
 - Attributes keep the order in which they are defined. This order matters for the constructor.
+- Default values are evaluated **once, when the structure definition runs**, in the scope of the definition. A default of a typed attribute must fit its type, otherwise it is a runtime error at that moment. Every instance gets that same value, so a non-primitive default (`A = []`) is **shared** by all instances that do not set it. Use `copy()` / `deep_copy()` in the constructor call if instances need their own.
 
 ### 14.2 Accessing attributes
 
@@ -1513,7 +1702,7 @@ end structure
 | Syntax | Meaning |
 |---|---|
 | `NAME V` | declare a typed variable *V* holding a new instance. Every attribute gets its default value, or `none` for an untyped attribute without one |
-| `NAME(A, B, C, ...)` | constructor: a new instance. *A*, *B*, *C*, ... are assigned to the attributes **in definition order**. Attributes without a given value get their default value, or `none` for an untyped attribute without one |
+| `NAME(A, B, C, ...)` | constructor: a new instance. *A*, *B*, *C*, ... are assigned to the attributes **in definition order**. Attributes without a given value get their default value, or `none` for an untyped attribute without one. More arguments than attributes is a runtime error |
 
 ### 14.4 Copying instances
 
@@ -1572,7 +1761,9 @@ The following are errors according to this document:
 | Operands of the wrong types for an operator (e.g. `"a" + 1`, `1 + 2.5`) | runtime error |
 | Division by zero, Integer overflow, a Float result that is not a finite real number | runtime error |
 | Chained comparisons (e.g. `A < B < C`) | error |
-| Ordering comparison (`<`, `>`, `<=`, `>=`) of values of different types | runtime error |
+| Ordering comparison (`<`, `>`, `<=`, `>=`) of anything but two Integers, two Floats, two Booleans or two Strings | runtime error |
+| Equality of two values of the same kind that does not support equality (Function, Procedure, structure definition, iterator), including when reached inside collections | runtime error |
+| Comparing, writing, `String(X)` or hashing a collection that contains itself | runtime error |
 | A failed cast (e.g. `Integer("abc")`, `Array<Integer>(["1"])`) | runtime error |
 | A condition (`if`, `else if`, `loop while`, `loop until`) that is not a Boolean | runtime error |
 | **Control flow** | |
@@ -1592,44 +1783,43 @@ The following are errors according to this document:
 | **Custom structures** | |
 | An attribute named `copy`, `deep_copy`, `get` or `set` | error |
 | Calling a function, procedure or structure before its definition has executed | error |
+| `global` / `nonlocal` for a name already used or assigned earlier in the function | error |
+| `global` / `nonlocal` for a name that holds a structure definition | runtime error |
+| `global X` without a global *X*, `nonlocal X` without an enclosing *X*, `global` / `nonlocal` at the top level, the same name declared twice, or a name that is already declared locally (e.g. a parameter) | runtime error |
+| Writing (`output`, `String(X)`) a structure instance, function, procedure or iterator | runtime error |
+| Calling `Iterator(...)` | error |
+| Using `for` over an iterator, or calling `iterator()` on a value that has none | runtime error |
+| Declaring a name (`let`, `const`, typed, definition) that was declared `global` / `nonlocal` in the function | error |
+| Defining a local structure whose name was already used in this call and resolved to an outer structure | runtime error |
+| **Collections** | |
+| Adding to a `Set` / `Multiset` a value that cannot be ordered, or of a different type than the values already there | runtime error |
+| Adding to an `UnorderedSet` a value without equality | runtime error |
+| Using a value that is not a valid key as a `Dictionary` key | runtime error |
+| Reading a missing `Dictionary` key | runtime error |
+| Negative index on an array, or an index beyond the length on a `StaticArray`, `DynamicArray`, `Tuple`, `Set` or `Multiset` | runtime error |
+| `pop`, `dequeue`, `remove` with nothing to remove | runtime error |
+| `next()` on an exhausted iterator | runtime error |
+| `StaticArray(L, B)` with more than *L* elements in *B*, or a negative length for `StaticArray` / `resize` | runtime error |
+| More arguments than attributes in a structure constructor | runtime error |
+| Calling a method that the value does not have (for example `push` on a `Tuple`, `get` on a `Stack`) | runtime error |
+| `input` when standard input has no more lines | runtime error |
 
 ## 16. Unspecified behaviour
 
 The following are intentionally not defined by this document:
 
-**Expressions and operators**
-- Which values of the same type can be ordered with `<`, `>`, `<=`, `>=` other than Integers and Floats (e.g. Strings, collections).
-- Equality of functions, procedures and structure definitions.
-- Which values can be used as dictionary keys, and how values are ordered in `Set`, `Multiset` and when iterating over Dictionary keys (especially values of different types in untyped ones).
-
 **Statements**
 - A statement with more than one top-level assignment operator (e.g. `X = Y = 1`).
 - Whether `input` accepts targets other than a plain variable (e.g. `input A[0]`).
-- The exact text format produced by `output` (and therefore by `String(X)`) for Integers, Floats (beyond always having a decimal point), Booleans, `none`, collections, tuples and structure instances.
-- Behaviour when standard input has no more lines.
+- The exact Float format beyond always having a decimal point.
 - Malformed collections in input (e.g. a dictionary element without `:`), and whether `(X)` without a comma in input is a one-element Tuple or a String.
 
 **Control flow**
 - What a for-each loop does when *B* is changed while it iterates over it ([10.3.4](#1034-for-each-loop)).
 
-**Functions, procedures and scopes**
-- Where in a body `global` / `nonlocal` may appear, and whether they affect the whole body or only the lines after them.
-- `global` / `nonlocal` at the top level, or for a name already declared in the local scopes.
-- `nonlocal X` when no enclosing function or procedure scope has *X*. `global X` when the global *X* does not exist yet.
-
 **Data structures**
 - What `get` and `set` do when the form of their first argument does not suit the receiver: a name or any other expression on a collection (`X.Z` on an array), an index or any other expression on a structure instance (`P[0]`, `P.get(1 + 2)`).
-- Reading a LazyArray at an index beyond its length, or using negative indexes.
-- Out-of-range indexes on `StaticArray`, `DynamicArray`, `Set`, `Multiset` and `Tuple`.
-- Reading a missing key from a Dictionary.
-- `next()` on an iterator with no elements left.
-- `pop`, `dequeue` or `remove` on an empty or non-matching structure.
-- Whether `DynamicArray.pop()` / `remove(I)` return the removed value.
-- `StaticArray(L, B)` when *B* has more than *L* elements.
-
-**Custom structures**
-- When attribute default values are evaluated.
-- Passing more arguments to `NAME(...)` than the structure has attributes.
+- The order of the values of an `UnorderedSet` / `UnorderedMultiset` and of the keys of a Dictionary, in iteration, in constructors and in `output`.
 
 ## 17. Grammar summary
 
@@ -1700,13 +1890,15 @@ attribute      = [ type ] identifier [ assign_op expr ] ;
 
 (* types *)
 type           = "Integer" | "Float" | "String" | "Boolean"
+               | "FunctionType" | "ProcedureType"
+               | "Iterator" [ "<" type ">" ]       (* no constructor: only X.iterator() creates one *)
                | collection [ "<" type ">" ]
                | ( "Dictionary" | "Map" ) [ "<" type "," type ">" ]
                | "Tuple" [ "<" type { "," type } ">" ]
                | identifier ;                    (* a custom structure name *)
 collection     = "Array" | "LazyArray" | "StaticArray" | "DynamicArray"
                | "Stack" | "Queue"
-               | "Set" | "Multiset" ;
+               | "Set" | "Multiset" | "UnorderedSet" | "UnorderedMultiset" ;
 
 (* expressions *)
 expr           = unary_op expr
@@ -1782,10 +1974,22 @@ V2 keeps V1's overall syntax, with these fixes, clarifications, changes and exte
 - Equality compares values, not identity or declared types ([7.3](#73-equality)).
 - `input X` behaves according to the kind of *X*. There is no separate `input T X` form.
 - **No implicit casting** anywhere. Operators require operands of matching types, and conditions must be Booleans.
+- Only Integers, Floats, Booleans and Strings can be ordered. Tuples and collections support equality only ([6.9](#69-what-values-support)).
+- Parameter and structure attribute default values are evaluated once, when the definition runs ([11.2](#112-parameters), [14.1](#141-defining)).
+- `Set` and `Multiset` keep one type of orderable values, `Dictionary` keys are restricted, and iteration over a Dictionary is no longer sorted ([13](#13-built-in-data-structures)).
+- `length()` exists only on arrays, `Stack`, `Queue` and `Tuple`. `Set`, `Multiset` and `Dictionary` have `size()` only.
+- Invalid operations on collections are runtime errors, with a few exceptions: reading a LazyArray beyond its length gives `none` ([13](#13-built-in-data-structures)).
+- `global` / `nonlocal` must come before the first use of the name, and declarations of such names are errors ([12.5](#125-global-and-nonlocal)). Structure names have an extra rule ([12.8](#128-structure-names)).
+- Equality is one operation reused everywhere, and functions and procedures do not support it ([7.3](#73-equality)).
 
 **Extensions**
 - Four kinds of variables: constants (`const X = Y`), typed (`T X = Y`, `T X`), explicit untyped (`let X = Y`, `let X`) and implicit untyped (assignment before declaration, `X = Y`). Only implicit untyped variables can be redeclared.
 - Typed collections `C<T>`, `Dictionary<K, T>`, alongside the untyped forms.
+- `UnorderedSet` and `UnorderedMultiset`: collections without an order, for values that cannot be ordered ([13.11](#1311-unorderedset), [13.12](#1312-unorderedmultiset)).
+- The types `FunctionType` and `ProcedureType`, with the constructors `ProcedureType(F)` and `FunctionType(P, R)` ([6.7](#67-type-casting), [6.8](#68-function-and-procedure-types)).
+- Every constructor accepts a value of its own type (except that `Iterator` has no constructor).
+- The type `Iterator` / `Iterator<T>` for the iterators returned by `X.iterator()` ([13.10](#1310-iterators)).
+- `contains` as an alias of `includes`, `size()` and `has(K)` on a Dictionary, `get` / `set` on every collection that has indexes or keys.
 - `Tuple` and `Tuple<T1, ..., Tn>`, with the literal `(X, Y, ...)`.
 - Explicit type casting through constructors: `Integer(X)`, `Float(X)`, `String(X)`, `Boolean(X)`, `Array<T>(B)`, ...
 - Typed function parameters and return types: `function T NAME(T1 A, T2 B) begin`.

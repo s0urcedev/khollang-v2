@@ -169,7 +169,12 @@ pub enum BuiltinType {
     Queue,
     Set,
     Multiset,
+    UnorderedSet,
+    UnorderedMultiset,
     Tuple,
+    FunctionType,
+    ProcedureType,
+    Iterator,
 }
 
 impl BuiltinType {
@@ -189,7 +194,12 @@ impl BuiltinType {
             "Queue" => BuiltinType::Queue,
             "Set" => BuiltinType::Set,
             "Multiset" => BuiltinType::Multiset,
+            "UnorderedSet" => BuiltinType::UnorderedSet,
+            "UnorderedMultiset" => BuiltinType::UnorderedMultiset,
             "Tuple" => BuiltinType::Tuple,
+            "FunctionType" => BuiltinType::FunctionType,
+            "ProcedureType" => BuiltinType::ProcedureType,
+            "Iterator" => BuiltinType::Iterator,
             _ => return None,
         })
     }
@@ -377,11 +387,16 @@ mod tests {
             "Queue",
             "Set",
             "Multiset",
+            "UnorderedSet",
+            "UnorderedMultiset",
             "Tuple",
+            "FunctionType",
+            "ProcedureType",
+            "Iterator",
         ] {
             assert!(BuiltinType::from_name(name).is_some(), "{name}");
         }
-        for name in ["integer", "INTEGER", "None", "List", "Dict"] {
+        for name in ["integer", "INTEGER", "None", "List", "Dict", "Function", "Procedure"] {
             assert_eq!(BuiltinType::from_name(name), None, "{name}");
         }
     }

@@ -1,0 +1,415 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Khollang",
+  "scopeName": "source.khollang",
+  "fileTypes": [
+    "kh"
+  ],
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#member"
+    },
+    {
+      "include": "#ender"
+    },
+    {
+      "include": "#structure"
+    },
+    {
+      "include": "#callable"
+    },
+    {
+      "include": "#let-or-const"
+    },
+    {
+      "include": "#typed-declaration"
+    },
+    {
+      "include": "#assignment"
+    },
+    {
+      "include": "#expression"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.line.double-slash.khollang",
+      "match": "//.*$"
+    },
+    "string": {
+      "name": "string.quoted.double.khollang",
+      "begin": "\"",
+      "end": "\"|$",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.khollang"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.khollang"
+        }
+      },
+      "patterns": [
+        {
+          "name": "constant.character.escape.khollang",
+          "match": "\\\\[\"\\\\nt]"
+        },
+        {
+          "name": "invalid.illegal.escape.khollang",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "member": {
+      "patterns": [
+        {
+          "match": "(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.khollang"
+            },
+            "2": {
+              "name": "entity.name.function.member.khollang"
+            }
+          }
+        },
+        {
+          "match": "(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.khollang"
+            },
+            "2": {
+              "name": "variable.other.property.khollang"
+            }
+          }
+        }
+      ]
+    },
+    "ender": {
+      "name": "keyword.control.end.khollang",
+      "match": "\\b(?:end|END|End)\\s+(?:if|IF|If|match|MATCH|Match|loop|LOOP|Loop|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure)\\b"
+    },
+    "structure": {
+      "begin": "\\b(structure|STRUCTURE|Structure)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+(has|HAS|Has)\\b)?",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.structure.khollang"
+        },
+        "2": {
+          "name": "entity.name.type.structure.khollang"
+        },
+        "3": {
+          "name": "storage.type.khollang"
+        }
+      },
+      "end": "\\b(?:end|END|End)\\s+(?:structure|STRUCTURE|Structure)\\b",
+      "endCaptures": {
+        "0": {
+          "name": "keyword.control.end.khollang"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comment"
+        },
+        {
+          "match": "^\\s*(?!\\b(?:end|END|End)\\s+(?:structure|STRUCTURE|Structure)\\b)(?:((?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)\\b[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?)*\\s*>)?)\\s+)?((?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)\\s*(?:(=(?!=)|:=|<-)|(?=//|$))",
+          "captures": {
+            "1": {
+              "patterns": [
+                {
+                  "include": "#type"
+                }
+              ]
+            },
+            "2": {
+              "name": "variable.other.property.khollang"
+            },
+            "3": {
+              "name": "keyword.operator.assignment.khollang"
+            }
+          }
+        },
+        {
+          "include": "#expression"
+        }
+      ]
+    },
+    "callable": {
+      "begin": "\\b(function|FUNCTION|Function|procedure|PROCEDURE|Procedure)\\s+(?:((?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)\\b[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?)*\\s*>)?)\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.khollang"
+        },
+        "2": {
+          "patterns": [
+            {
+              "include": "#type"
+            }
+          ]
+        },
+        "3": {
+          "name": "entity.name.function.khollang"
+        },
+        "4": {
+          "name": "punctuation.definition.parameters.begin.khollang"
+        }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.parameters.end.khollang"
+        }
+      },
+      "patterns": [
+        {
+          "match": "(?<=\\(|,)\\s*(?:((?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)\\b[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?)*\\s*>)?)\\s+)?((?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)\\b(?:\\s*(=(?!=)|:=|<-))?",
+          "captures": {
+            "1": {
+              "patterns": [
+                {
+                  "include": "#type"
+                }
+              ]
+            },
+            "2": {
+              "name": "variable.parameter.khollang"
+            },
+            "3": {
+              "name": "keyword.operator.assignment.khollang"
+            }
+          }
+        },
+        {
+          "include": "#expression"
+        }
+      ]
+    },
+    "let-or-const": {
+      "patterns": [
+        {
+          "match": "\\b(const|CONST|Const)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s*(=(?!=)|:=|<-))?",
+          "captures": {
+            "1": {
+              "name": "storage.type.khollang"
+            },
+            "2": {
+              "name": "variable.other.constant.khollang"
+            },
+            "3": {
+              "name": "keyword.operator.assignment.khollang"
+            }
+          }
+        },
+        {
+          "match": "\\b(let|LET|Let)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s*(=(?!=)|:=|<-))?",
+          "captures": {
+            "1": {
+              "name": "storage.type.khollang"
+            },
+            "2": {
+              "name": "variable.other.khollang"
+            },
+            "3": {
+              "name": "keyword.operator.assignment.khollang"
+            }
+          }
+        }
+      ]
+    },
+    "typed-declaration": {
+      "match": "^\\s*((?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)\\b[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?)*\\s*>)?)\\s+((?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)\\s*(?:(=(?!=)|:=|<-)|(?=//|$))",
+      "captures": {
+        "1": {
+          "patterns": [
+            {
+              "include": "#type"
+            }
+          ]
+        },
+        "2": {
+          "name": "variable.other.khollang"
+        },
+        "3": {
+          "name": "keyword.operator.assignment.khollang"
+        }
+      }
+    },
+    "assignment": {
+      "match": "^\\s*((?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)\\b[A-Za-z_][A-Za-z0-9_]*(?:\\s*\\.\\s*[A-Za-z_][A-Za-z0-9_]*|\\s*\\[(?:[^\\[\\]]|\\[[^\\[\\]]*\\])*\\])*)\\s*(=(?!=)|:=|<-)",
+      "captures": {
+        "1": {
+          "patterns": [
+            {
+              "include": "#expression"
+            }
+          ]
+        },
+        "2": {
+          "name": "keyword.operator.assignment.khollang"
+        }
+      }
+    },
+    "type": {
+      "patterns": [
+        {
+          "name": "entity.name.type.builtin.khollang",
+          "match": "\\b(?:Integer|Float|String|Boolean|Array|LazyArray|StaticArray|DynamicArray|Dictionary|Map|Stack|Queue|Set|Multiset|OrderedSet|OrderedMultiset|UnorderedSet|UnorderedMultiset|Tuple|FunctionType|ProcedureType|Iterator)\\b"
+        },
+        {
+          "name": "entity.name.type.khollang",
+          "match": "[A-Za-z_][A-Za-z0-9_]*"
+        },
+        {
+          "name": "punctuation.definition.typeparameters.khollang",
+          "match": "[<>]"
+        },
+        {
+          "name": "punctuation.separator.comma.khollang",
+          "match": ","
+        }
+      ]
+    },
+    "expression": {
+      "patterns": [
+        {
+          "include": "#comment"
+        },
+        {
+          "include": "#string"
+        },
+        {
+          "include": "#member"
+        },
+        {
+          "include": "#keywords"
+        },
+        {
+          "include": "#type-reference"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "include": "#call"
+        },
+        {
+          "include": "#variable"
+        },
+        {
+          "include": "#operators"
+        },
+        {
+          "include": "#punctuation"
+        },
+        {
+          "include": "#illegal"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.khollang",
+          "match": "\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End)\\b"
+        },
+        {
+          "name": "storage.type.khollang",
+          "match": "\\b(?:let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal)\\b"
+        },
+        {
+          "name": "keyword.other.khollang",
+          "match": "\\b(?:input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete)\\b"
+        },
+        {
+          "name": "constant.language.khollang",
+          "match": "\\b(?:true|TRUE|True|false|FALSE|False|none|NONE|None)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.khollang",
+          "match": "\\b(?:not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff)\\b"
+        },
+        {
+          "name": "keyword.operator.arithmetic.khollang",
+          "match": "\\b(?:mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b"
+        }
+      ]
+    },
+    "type-reference": {
+      "match": "\\b(?:Integer|Float|String|Boolean|Array|LazyArray|StaticArray|DynamicArray|Dictionary|Map|Stack|Queue|Set|Multiset|OrderedSet|OrderedMultiset|UnorderedSet|UnorderedMultiset|Tuple|FunctionType|ProcedureType|Iterator)\\b(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*<\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*(?:\\s*,\\s*(?!\\b(?:if|IF|If|then|THEN|Then|else|ELSE|Else|match|MATCH|Match|with|WITH|With|case|CASE|Case|otherwise|OTHERWISE|Otherwise|loop|LOOP|Loop|while|WHILE|While|until|UNTIL|Until|for|FOR|For|from|FROM|From|to|TO|To|in|IN|In|do|DO|Do|break|BREAK|Break|continue|CONTINUE|Continue|return|RETURN|Return|begin|BEGIN|Begin|end|END|End|let|LET|Let|const|CONST|Const|function|FUNCTION|Function|procedure|PROCEDURE|Procedure|structure|STRUCTURE|Structure|has|HAS|Has|global|GLOBAL|Global|nonlocal|NONLOCAL|Nonlocal|input|INPUT|Input|output|OUTPUT|Output|delete|DELETE|Delete|true|TRUE|True|false|FALSE|False|none|NONE|None|not|NOT|Not|and|AND|And|or|OR|Or|xor|XOR|Xor|imp|IMP|Imp|iff|IFF|Iff|mod|MOD|Mod|div|DIV|Div|pow|POW|Pow)\\b)[A-Za-z_][A-Za-z0-9_]*)*\\s*>)?)*\\s*>)?)*\\s*>)?",
+      "captures": {
+        "0": {
+          "patterns": [
+            {
+              "include": "#type"
+            }
+          ]
+        }
+      }
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.khollang",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.khollang",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "call": {
+      "name": "entity.name.function.khollang",
+      "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()"
+    },
+    "variable": {
+      "name": "variable.other.khollang",
+      "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.khollang",
+          "match": ":="
+        },
+        {
+          "name": "keyword.operator.bitwise.khollang",
+          "match": "<==>|==>|<<|>>|&|\\||\\^|~"
+        },
+        {
+          "name": "keyword.operator.comparison.khollang",
+          "match": "==|!=|<>|<=|>=|=|<|>"
+        },
+        {
+          "name": "keyword.operator.arithmetic.khollang",
+          "match": "\\+|-|\\*|/"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.comma.khollang",
+          "match": ","
+        },
+        {
+          "name": "punctuation.separator.colon.khollang",
+          "match": ":"
+        }
+      ]
+    },
+    "illegal": {
+      "name": "invalid.illegal.khollang",
+      "match": "#"
+    }
+  }
+}

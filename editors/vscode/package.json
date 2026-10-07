@@ -1,0 +1,39 @@
+{
+  "name": "khollang",
+  "displayName": "Khollang",
+  "description": "Syntax highlighting for the Khollang programming language",
+  "version": "1.0.0",
+  "publisher": "s0urcedev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/s0urcedev/khollang-v2"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "khollang",
+        "aliases": [
+          "Khollang",
+          "khollang"
+        ],
+        "extensions": [
+          ".kh"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "khollang",
+        "scopeName": "source.khollang",
+        "path": "./syntaxes/khollang.tmLanguage.json"
+      }
+    ]
+  }
+}

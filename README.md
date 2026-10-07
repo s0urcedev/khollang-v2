@@ -32,3 +32,7 @@ output "Hello, " + NAME + "!"
 
 - [`docs/guide.md`](docs/guide.md): the language guide, including limits
 - [`docs/examples`](docs/examples): ten example programs that show the language feature by feature
+
+## VS Code
+
+Syntax highlighting for `.kh` files is in [`editors/vscode`](editors/vscode). See its [README](editors/vscode/README.md) for how to install it.

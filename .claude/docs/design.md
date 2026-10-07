@@ -205,6 +205,7 @@ enum StatementKind {
     // instructions
     Assign { target: Name, value: Expression },
     Input(Name),
+    Delete(Name),                  // delete X: removes the variable and its content
     Output(Vec<Expression>),
     Global(Vec<Name>),
     Nonlocal(Vec<Name>),
@@ -258,7 +259,7 @@ enum BinaryOperator {
 // one variant per actual kind: `Array` is a `LazyArray`
 enum CollectionKind {
     LazyArray, StaticArray, DynamicArray, Stack, Queue,
-    Set, Multiset, UnorderedSet, UnorderedMultiset,
+    OrderedSet, OrderedMultiset, UnorderedSet, UnorderedMultiset,   // `Set` and `Multiset` are aliases
 }
 
 enum Type {
@@ -391,13 +392,13 @@ For now, `input` reads standard input and `output` writes standard output direct
 
 ### 5.6 Command line and error reporting
 
-- `khol code.txt` runs the program. Without an argument, or with more than one, it prints a usage message to standard error, like standard command line tools do, and exits with a non-zero status:
+- `khol code.txt [limits]` runs the program, with the limits of the optional file ([6](#6-limits)). Without an argument, or with more than two, it prints a usage message to standard error, like standard command line tools do, and exits with a non-zero status:
 
   ```
-  usage: khol <file>
+  Usage: khol <file> [limits-file]
   ```
 
-- An unreadable or missing file is reported to standard error and also exits with a non-zero status.
+- An unreadable or missing file, and an unreadable or invalid limits file, are reported to standard error and also exit with a non-zero status.
 - An `Error` ([3.1](#31-output-format)) is printed to standard error with its `Display` form (`line N, column M: message`) and the exit status is non-zero. This holds for lexer, parser and runtime errors. A runtime error keeps everything the program already wrote to standard output.
 
 ### 5.7 Choices where the syntax leaves behaviour unspecified
@@ -417,6 +418,105 @@ The executor does the following where [syntax 16](syntax.md#16-unspecified-behav
 - **`nonlocal X`** uses the nearest enclosing scope below the global one that has *X*, including the block scopes of the enclosing functions.
 - **Recursion.** The depth of a call of the program's functions and procedures is limited to 1,000,000, counting the first call, made at the top level, as depth 0. So 1,000,001 calls can be nested, and the next one is a runtime error ("the recursion is too deep"). Wrappers made by `FunctionType(...)` and `ProcedureType(...)` do not count, only the calls of the program's own definitions do. A function `DEPTH(N)` that recurses down to `N = 0` makes `N + 1` nested calls, so `DEPTH(1000000)` is the deepest that works. The program runs on a thread with an 8 GiB stack (a smaller one, down to 256 MiB, if the system refuses it). The memory is only used as deep as the program recurses. A recursion of 1,000,000 calls works in a release build: a call level takes about 1.6 KiB, and more inside blocks (about 4.4 KiB through a loop and two `if`s). A debug build uses several times more. A debug build has a smaller reach.
 
-### 5.8 Not in the current scope
+## 6. Limits
 
-- **Limits** (V1's limits file) are left out for now and will be added later.
+A teacher sets limits to check that a student's program works without some features, or with a bounded number of values. A limit has a name and a number, or `null` for unlimited, which is the default of every limit. Limits belong to the interpreter run (`khol code.txt limits.json`), not to the language. [`limits.md`](limits.md) describes them for the people who set them, with every limit and examples. This section is how the interpreter does it.
+
+### 6.1 The limits file
+
+- The second argument of `khol` is a limits file. A file whose name ends with `.json` is JSON, any other is text.
+- **Text**: one `name: value` per line. The value is a whole number or `null`. Empty lines are ignored. There are no comments.
+- **JSON**: one object that maps names to whole numbers or `null`:
+
+  ```
+  {
+      "loop_statements": 2,
+      "arrays": null
+  }
+  ```
+
+- The static and the runtime limits are in the same file. An unknown name, a negative or non-integer value, or any other mistake in the file is an error before the program starts.
+
+### 6.2 Static limits
+
+They count the constructs of the source, as they were written, and are checked after the program is lexed and parsed and **before it runs**. `0` forbids the construct. The first statement that goes over a limit is reported, with its line and column. Syntax errors come first.
+
+The lexer lists the statements before it rewrites `match`, `until`, `for` and for-each loops ([3.3](#33-desugaring)), so `for_loop_statements: 0` forbids `for` loops, and a `match` counts as a `match` and not as an `if`. A line that only belongs to a statement (`else`, `else if`, `case`, `otherwise`, `end ...`) and the attribute lines of a structure are not statements.
+
+| Limit | Counts |
+|---|---|
+| `statements` | every statement |
+| `input_statements`, `output_statements`, `delete_statements` | `input`, `output`, `delete` |
+| `global_statements`, `nonlocal_statements` | `global`, `nonlocal` |
+| `break_statements`, `continue_statements`, `return_statements` | `break`, `continue`, `return` |
+| `if_statements`, `match_statements` | `if` (not its `else if`), `match` |
+| `condition_statements` | `if` and `match` together |
+| `while_loop_statements`, `until_loop_statements` | `loop while`, `loop until` |
+| `for_loop_statements`, `for_each_loop_statements` | `loop X from ... to ...`, `loop X in ...`, with or without `for` |
+| `loop_statements` | all loops |
+| `functions`, `procedures` | definitions |
+| `functions_and_procedures` | both |
+| `structure_definitions` | `structure` definitions |
+| `typed`, `untyped` | declarations that have a type (complete or not), and those without one or with an incomplete one ([6.2.1](#621-declarations)) |
+| `variable_declarations` | all declarations of variables, parameters and structure attributes |
+| `const_variable_declarations`, `typed_variable_declarations` | `const`, and declarations with a type |
+| `untyped_variable_declarations` | `let`, and parameters and attributes without a type, and the implicit declarations while running |
+| `explicit_untyped_variable_declarations` | `let`, and parameters and attributes without a type |
+
+#### 6.2.1 Declarations
+
+The last limits of the table count **declarations**, not the variables that exist when the program runs. They are listed from the **syntax tree**, after parsing (`limits::declarations`), and merged with the statements of the lexer in the order of the source, so that the first one that goes over a limit is reported. The positions are those of the statement: the function for a parameter or a return type, the structure for an attribute.
+
+- A *variable declaration* is a `let`, a `const`, a typed declaration, a parameter of a function or a procedure, and an attribute of a structure. The definitions of functions, procedures and structures are not declarations, and neither are names with a `#`. The declarations of implicit variables are not listed here, because an assignment only declares a variable when the name does not exist yet, which is known at run time ([6.3](#63-runtime-limits)).
+- **Mixed limits.** `variable_declarations`, `untyped_variable_declarations` and `untyped` count both. `check_static` checks the declarations of the source before the program runs. The tracker then starts these three counters at the totals of the source (`limits::totals`) and every implicit declaration adds one to each, so the program stops at the statement that goes over. `Limit::is_mixed` tells which ones they are, and they keep the tracker active when only they are set.
+- The kind of a declaration is that of the variable ([syntax 8.1](syntax.md#81-the-four-kinds-of-variables)): `const`; typed; explicit untyped (`let`, and parameters and attributes without a type).
+- `typed` counts the places that have a type: typed declarations, typed parameters and attributes, and the return type of a function. `untyped` counts the declarations without a type (`let`, parameters and attributes), the ones with an **incomplete** type, and a function without a return type. A type is incomplete when it is a collection, dictionary, tuple or iterator without type arguments (`Array`) or with incomplete ones (`Array<Array>`), so `Array A` counts for both. A `const` is neither.
+
+### 6.3 Runtime limits
+
+They are counters of what exists **now** while the program runs. A limit that is not set is not counted. A violation is a runtime error at the statement that goes over the limit: `line 12, column 5: limit "arrays" (3) exceeded`.
+
+**Declarations that happen**
+
+- `implicit_untyped_variable_declarations`: the statements that declared an implicit variable: an assignment or `input` to a name that did not exist in the local scopes, or a loop variable with a new name. The tracker keeps the positions (line and column) of the statements that have done it, so a statement counts once however often it runs. Names with a `#` do not count.
+
+**Primitives**
+
+- `integers`, `floats`, `strings`, `booleans`, `nones`: the values that are stored now in a variable, in an element of a collection, in a tuple, in a dictionary (key or value), or in an attribute of a structure instance. The temporary results of expressions are not counted, and neither are the values of parameters and of the internal `#` variables that the lexer makes (`#COUNTER`, `#MATCH`, ...), which count for no limit. A value is given back when it is replaced, removed (`pop`, `dequeue`, `remove`, `resize`), when the variable's scope ends and when `delete` removes it. The primitives inside an object are given back with the object.
+
+**Objects**
+
+- `lazy_arrays`, `static_arrays`, `dynamic_arrays`, and `arrays` (all three)
+- `stacks`, `queues`, `dictionaries`, `tuples`
+- `ordered_sets`, `unordered_sets` and `sets` (both); `ordered_multisets`, `unordered_multisets` and `multisets` (both)
+- `data_structures`: every collection, dictionary, tuple and structure instance
+- `custom_structures`: structure instances
+- `function_values`, `procedure_values`: made when a definition runs, and by **every** call of `FunctionType(...)` / `ProcedureType(...)`, also when the argument already has that type
+- `iterators`
+
+An object is made by a literal, a constructor, a typed declaration without a value (the default value), a structure constructor, `copy()`, `deep_copy()` (which makes every object it copies), `iterator()`, the value of `input`, and the execution of a function or procedure definition. It counts for as long as it **exists**, which is as long as anything refers to it: a variable, a container, an iterator, a function, or the code that is evaluating an expression. An object that nothing refers to any more is given back, so the temporary array of `output [1, 2]`, the old array that `A = [2]` replaces, and a value that was popped and thrown away do not stay counted.
+
+Objects and what is put in them are checked when the **statement ends**, not when they are made. `A = [2]` makes the new array while `A` still holds the old one, which is gone when the statement is done, so it needs room for one array only. A temporary that is gone before the statement ends does not count at all.
+
+### 6.4 Giving back
+
+What variables held is given back when [`delete X`](syntax.md#86-delete) removes a variable, when a scope ends, and when an object is no longer referred to:
+
+- if it held a primitive, that primitive;
+- if it held an object, that object and everything inside it, with the primitives inside, **when nothing else uses it**. An object that another variable, a container, an iterator or a function still refers to stays counted, because it still exists.
+
+The scope of a block or a call ends when it finishes. Nothing is given back when the scope is still in use, which is when a function that was defined in it is still alive (it can reach the variables). A function that only the scope itself refers to does not count as alive.
+
+How it works: the reference counts decide whether something is used.
+
+- At `delete` and at the end of a scope, the objects reachable from the values that go away are collected, and the references that come from these values themselves (the variables, and the objects inside the others) are subtracted. An object that has no more references than those is not used, and neither is any object reachable only from such objects. So objects that refer to each other, and a container that holds itself, are given back as a whole.
+- Everywhere else (a temporary, a replaced value, a popped value) an object is gone when the last reference to it is dropped. The tracker keeps a weak reference to every object it counted. When a limit would be exceeded, it counts the live ones again, and only if the limit is still exceeded is it an error. To keep the list small it also does this every time the number of known objects doubles.
+
+An object that refers to itself and is dropped without `delete` or the end of a scope, such as `A = []`, `A[0] = A`, `A = 5`, is not found: it stays counted until its scope ends.
+
+### 6.5 Implementation
+
+- `limits.rs` has the `Limit` enum with the names, `Limits` (the values, and the file formats), the static check, and the `Tracker`, which the context owns.
+- `lexer::lex_counted` returns the statements of the source with the limits each one counts for, and `limits::declarations` lists the declarations from the syntax tree. `check_static` runs between parsing and execution, on both lists merged in the order of the source.
+- The executor and the built-in methods call the tracker where something is stored, removed, created or deleted, after the change was made. `Statement::execute` checks the limits at its end. Without a runtime limit the tracker does nothing.
+- The call depth of 1,000,000 ([5.7](#57-choices-where-the-syntax-leaves-behaviour-unspecified)) is a fixed safety limit of the interpreter, not one of these limits.

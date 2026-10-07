@@ -100,7 +100,8 @@ fn elements_of(value: &Value) -> R<Vec<Value>> {
 
 /// Adds a value the way the kind of the collection does ([syntax 13]): at the end of an
 /// array, a Stack or a Queue, at its place in a Set or Multiset, once in an UnorderedSet.
-pub fn add_item(c: &Rc<RefCell<Collection>>, value: Value) -> R<()> {
+/// Returns whether the value was added: a Set and an UnorderedSet do not add a value twice.
+pub fn add_item(c: &Rc<RefCell<Collection>>, value: Value) -> R<bool> {
     let (kind, element) = {
         let c = c.borrow();
         (c.kind, c.element.clone())
@@ -113,7 +114,7 @@ pub fn add_item(c: &Rc<RefCell<Collection>>, value: Value) -> R<()> {
         | CollectionKind::Stack
         | CollectionKind::Queue
         | CollectionKind::UnorderedMultiset => c.borrow_mut().items.push_back(value),
-        CollectionKind::Set | CollectionKind::Multiset => {
+        CollectionKind::OrderedSet | CollectionKind::OrderedMultiset => {
             if !orderable(&value) {
                 return Err(format!(
                     "{} cannot be stored in a {}: its values must be ordered",
@@ -134,10 +135,10 @@ pub fn add_item(c: &Rc<RefCell<Collection>>, value: Value) -> R<()> {
             }
             let at = {
                 let c = c.borrow();
-                if kind == CollectionKind::Set {
+                if kind == CollectionKind::OrderedSet {
                     let at = c.items.partition_point(|x| ordering(x, &value).is_lt());
                     if at < c.items.len() && ordering(&c.items[at], &value).is_eq() {
-                        return Ok(());
+                        return Ok(false);
                     }
                     at
                 } else {
@@ -156,13 +157,13 @@ pub fn add_item(c: &Rc<RefCell<Collection>>, value: Value) -> R<()> {
             let items: Vec<Value> = c.borrow().items.iter().cloned().collect();
             for item in &items {
                 if equals(item, &value)? {
-                    return Ok(());
+                    return Ok(false);
                 }
             }
             c.borrow_mut().items.push_back(value);
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 /// Where a value is in an unordered or sorted collection, comparing with `=`.
@@ -233,16 +234,22 @@ pub fn call_method(
         {
             arity(name, &args, 0)?;
             return if name == "copy" {
-                shallow_copy(receiver)
+                let copy = shallow_copy(receiver)?;
+                ctx.tracker.created_with_elements(&copy)?;
+                Ok(copy)
             } else {
-                deep_copy(receiver)
+                let copy = deep_copy(receiver)?;
+                ctx.tracker.created_graph(&copy)?;
+                Ok(copy)
             };
         }
         "iterator" => {
             return match receiver {
                 Value::Collection(_) | Value::Dictionary(_) | Value::Tuple(_) => {
                     arity(name, &args, 0)?;
-                    Ok(make_iterator(receiver))
+                    let iterator = make_iterator(receiver);
+                    ctx.tracker.created(&iterator)?;
+                    Ok(iterator)
                 }
                 other => Err(format!("{} cannot be iterated", describe(other))),
             };
@@ -251,9 +258,9 @@ pub fn call_method(
     }
     match receiver {
         Value::Collection(c) => collection_method(ctx, c, receiver, name, args),
-        Value::Dictionary(d) => dictionary_method(d, receiver, name, args),
+        Value::Dictionary(d) => dictionary_method(ctx, d, receiver, name, args),
         Value::Tuple(t) => tuple_method(t, receiver, name, args),
-        Value::Instance(i) => instance_method(i, receiver, name, args),
+        Value::Instance(i) => instance_method(ctx, i, receiver, name, args),
         Value::Iterator(i) => iterator_method(i, receiver, name, args),
         other => Err(no_method(other, name)),
     }
@@ -328,13 +335,17 @@ fn collection_method(
                 let index = index as usize;
                 while c.borrow().items.len() <= index {
                     let filler = gap(ctx, &element)?;
-                    c.borrow_mut().items.push_back(filler);
+                    c.borrow_mut().items.push_back(filler.clone());
+                    ctx.tracker.stored_in_element(&filler)?;
                 }
-                c.borrow_mut().items[index] = args[1].clone();
+                let old = std::mem::replace(&mut c.borrow_mut().items[index], args[1].clone());
+                ctx.tracker.released_from_element(&old);
             } else {
                 let at = checked_index(index, size)?;
-                c.borrow_mut().items[at] = args[1].clone();
+                let old = std::mem::replace(&mut c.borrow_mut().items[at], args[1].clone());
+                ctx.tracker.released_from_element(&old);
             }
+            ctx.tracker.stored_in_element(&args[1])?;
             Ok(Value::None)
         }
         "resize" if kind == K::StaticArray => {
@@ -343,24 +354,30 @@ fn collection_method(
             if length < 0 {
                 return Err(format!("the length {length} is negative"));
             }
-            let mut items = VecDeque::new();
-            for _ in 0..length {
-                items.push_back(gap(ctx, &element)?);
+            // the old values leave before the new ones are put in
+            let old = std::mem::take(&mut c.borrow_mut().items);
+            for value in &old {
+                ctx.tracker.released_from_element(value);
             }
-            c.borrow_mut().items = items;
+            for _ in 0..length {
+                let filler = gap(ctx, &element)?;
+                c.borrow_mut().items.push_back(filler.clone());
+                ctx.tracker.stored_in_element(&filler)?;
+            }
             Ok(Value::None)
         }
         "push" if kind == K::DynamicArray || kind == K::Stack => {
             arity(name, &args, 1)?;
             add_item(c, args[0].clone())?;
+            ctx.tracker.stored_in_element(&args[0])?;
             Ok(Value::None)
         }
         "pop" if kind == K::DynamicArray || kind == K::Stack => {
             arity(name, &args, 0)?;
-            c.borrow_mut()
-                .items
-                .pop_back()
-                .ok_or_else(|| "no items to remove".to_string())
+            let removed = c.borrow_mut().items.pop_back();
+            let removed = removed.ok_or_else(|| "no items to remove".to_string())?;
+            ctx.tracker.released_from_element(&removed);
+            Ok(removed)
         }
         "insert" if kind == K::DynamicArray => {
             arity(name, &args, 2)?;
@@ -370,29 +387,35 @@ fn collection_method(
             }
             check_element(&element, &args[1])?;
             c.borrow_mut().items.insert(index as usize, args[1].clone());
+            ctx.tracker.stored_in_element(&args[1])?;
             Ok(Value::None)
         }
         "remove" if kind == K::DynamicArray => {
             arity(name, &args, 1)?;
             let index = integer(&args[0], "an index")?;
             let at = checked_index(index, size)?;
-            Ok(c.borrow_mut().items.remove(at).expect("the index was checked"))
+            let removed = c.borrow_mut().items.remove(at).expect("the index was checked");
+            ctx.tracker.released_from_element(&removed);
+            Ok(removed)
         }
         "enqueue" if kind == K::Queue => {
             arity(name, &args, 1)?;
             add_item(c, args[0].clone())?;
+            ctx.tracker.stored_in_element(&args[0])?;
             Ok(Value::None)
         }
         "dequeue" if kind == K::Queue => {
             arity(name, &args, 0)?;
-            c.borrow_mut()
-                .items
-                .pop_front()
-                .ok_or_else(|| "no items to remove".to_string())
+            let removed = c.borrow_mut().items.pop_front();
+            let removed = removed.ok_or_else(|| "no items to remove".to_string())?;
+            ctx.tracker.released_from_element(&removed);
+            Ok(removed)
         }
         "add" if set_like => {
             arity(name, &args, 1)?;
-            add_item(c, args[0].clone())?;
+            if add_item(c, args[0].clone())? {
+                ctx.tracker.stored_in_element(&args[0])?;
+            }
             Ok(Value::None)
         }
         "includes" | "contains" if set_like => {
@@ -403,7 +426,10 @@ fn collection_method(
             arity(name, &args, 1)?;
             match position_of(c, &args[0])? {
                 Some(at) => {
-                    c.borrow_mut().items.remove(at);
+                    let removed = c.borrow_mut().items.remove(at);
+                    if let Some(removed) = removed {
+                        ctx.tracker.released_from_element(&removed);
+                    }
                     Ok(Value::None)
                 }
                 None => Err("no items to remove".into()),
@@ -414,6 +440,7 @@ fn collection_method(
 }
 
 fn dictionary_method(
+    ctx: &mut Context,
     d: &Rc<RefCell<Dictionary>>,
     receiver: &Value,
     name: &str,
@@ -449,7 +476,14 @@ fn dictionary_method(
                     return Err(format!("value: {}", does_not_fit(&args[1], &value_type)));
                 }
             }
+            let old = d.borrow().get(&key).cloned();
             d.borrow_mut().insert(key, args[0].clone(), args[1].clone());
+            // counted after the change, so that a recount sees it
+            match old {
+                Some(old) => ctx.tracker.released_from_element(&old),
+                None => ctx.tracker.stored_in_element(&args[0])?,
+            }
+            ctx.tracker.stored_in_element(&args[1])?;
             Ok(Value::None)
         }
         _ => Err(no_method(receiver, name)),
@@ -480,6 +514,7 @@ fn tuple_method(
 }
 
 fn instance_method(
+    ctx: &mut Context,
     i: &Rc<RefCell<Instance>>,
     receiver: &Value,
     name: &str,
@@ -511,7 +546,9 @@ fn instance_method(
             {
                 return Err(format!("attribute `{attribute}`: {}", does_not_fit(&args[1], &ty)));
             }
-            i.borrow_mut().values[at] = args[1].clone();
+            let old = std::mem::replace(&mut i.borrow_mut().values[at], args[1].clone());
+            ctx.tracker.released_from_element(&old);
+            ctx.tracker.stored_in_element(&args[1])?;
             Ok(Value::None)
         }
         _ => Err(no_method(receiver, name)),
@@ -592,6 +629,18 @@ pub fn finite(value: f64) -> R<f64> {
 
 pub fn construct(ctx: &mut Context, ty: &Type, args: Vec<Value>) -> R<Value> {
     ctx.check_type(ty)?;
+    let value = construct_uncounted(ctx, ty, args)?;
+    // every call of a constructor creates an object, also of the type that it was given
+    if matches!(
+        value,
+        Value::Collection(_) | Value::Dictionary(_) | Value::Tuple(_) | Value::Callable(_)
+    ) {
+        ctx.tracker.created_with_elements(&value)?;
+    }
+    Ok(value)
+}
+
+fn construct_uncounted(ctx: &mut Context, ty: &Type, args: Vec<Value>) -> R<Value> {
     match ty {
         Type::Integer => construct_integer(&args),
         Type::Float => construct_float(&args),
@@ -695,7 +744,7 @@ fn construct_callable(ty: &Type, args: Vec<Value>) -> R<Value> {
         (Type::FunctionType, [value]) => {
             let c = callable(value, "FunctionType")?;
             if c.is_function {
-                Ok(Value::Callable(c))
+                Ok(wrap(c.name.clone(), true, CallableBody::Same(c)))
             } else {
                 Err("FunctionType(P) needs a function: write FunctionType(P, R) for a \
                      procedure P"
@@ -711,7 +760,7 @@ fn construct_callable(ty: &Type, args: Vec<Value>) -> R<Value> {
                     CallableBody::DropResult(c),
                 ))
             } else {
-                Ok(Value::Callable(c))
+                Ok(wrap(c.name.clone(), false, CallableBody::Same(c)))
             }
         }
         (Type::FunctionType, [value, result]) => {

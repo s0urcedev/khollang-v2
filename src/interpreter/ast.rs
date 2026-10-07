@@ -55,6 +55,8 @@ pub enum StatementKind {
         value: Expression,
     },
     Input(Name),
+    /// `delete X`: removes the variable and its content.
+    Delete(Name),
     Output(Vec<Expression>),
     Global(Vec<Name>),
     Nonlocal(Vec<Name>),
@@ -167,8 +169,8 @@ pub enum CollectionKind {
     DynamicArray,
     Stack,
     Queue,
-    Set,
-    Multiset,
+    OrderedSet,
+    OrderedMultiset,
     UnorderedSet,
     UnorderedMultiset,
 }

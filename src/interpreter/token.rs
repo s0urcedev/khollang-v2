@@ -69,6 +69,7 @@ pub enum Keyword {
     Global,
     Nonlocal,
     In,
+    Delete,
 }
 
 impl Keyword {
@@ -105,6 +106,7 @@ impl Keyword {
             "global" => Keyword::Global,
             "nonlocal" => Keyword::Nonlocal,
             "in" => Keyword::In,
+            "delete" => Keyword::Delete,
             _ => return None,
         })
     }
@@ -148,6 +150,7 @@ impl Keyword {
             Keyword::Global => "global",
             Keyword::Nonlocal => "nonlocal",
             Keyword::In => "in",
+            Keyword::Delete => "delete",
         }
     }
 }
@@ -169,6 +172,8 @@ pub enum BuiltinType {
     Queue,
     Set,
     Multiset,
+    OrderedSet,
+    OrderedMultiset,
     UnorderedSet,
     UnorderedMultiset,
     Tuple,
@@ -194,6 +199,8 @@ impl BuiltinType {
             "Queue" => BuiltinType::Queue,
             "Set" => BuiltinType::Set,
             "Multiset" => BuiltinType::Multiset,
+            "OrderedSet" => BuiltinType::OrderedSet,
+            "OrderedMultiset" => BuiltinType::OrderedMultiset,
             "UnorderedSet" => BuiltinType::UnorderedSet,
             "UnorderedMultiset" => BuiltinType::UnorderedMultiset,
             "Tuple" => BuiltinType::Tuple,
@@ -387,6 +394,8 @@ mod tests {
             "Queue",
             "Set",
             "Multiset",
+            "OrderedSet",
+            "OrderedMultiset",
             "UnorderedSet",
             "UnorderedMultiset",
             "Tuple",

@@ -162,6 +162,9 @@ pub enum CallableBody {
     },
     /// `ProcedureType(F)`: runs *F* and drops its result.
     DropResult(Rc<Callable>),
+    /// `FunctionType(F)` and `ProcedureType(P)`: a new function or procedure with the same
+    /// content as the one it is given.
+    Same(Rc<Callable>),
     /// `FunctionType(P, R)`: runs *P* and returns *R*.
     ReturnConstant(Rc<Callable>, Value),
     /// The default of `FunctionType` and `ProcedureType`: does nothing.
@@ -180,7 +183,9 @@ impl Callable {
     pub fn parameters(&self) -> &[ParameterDef] {
         match &self.body {
             CallableBody::User { parameters, .. } => parameters,
-            CallableBody::DropResult(inner) | CallableBody::ReturnConstant(inner, _) => {
+            CallableBody::DropResult(inner)
+            | CallableBody::Same(inner)
+            | CallableBody::ReturnConstant(inner, _) => {
                 inner.parameters()
             }
             CallableBody::Nothing => &[],
@@ -239,8 +244,8 @@ pub fn collection_kind(kind: CollectionKind) -> Kind {
         }
         CollectionKind::Stack => Kind::Stack,
         CollectionKind::Queue => Kind::Queue,
-        CollectionKind::Set => Kind::Set,
-        CollectionKind::Multiset => Kind::Multiset,
+        CollectionKind::OrderedSet => Kind::Set,
+        CollectionKind::OrderedMultiset => Kind::Multiset,
         CollectionKind::UnorderedSet => Kind::UnorderedSet,
         CollectionKind::UnorderedMultiset => Kind::UnorderedMultiset,
     }
@@ -290,8 +295,8 @@ pub fn collection_name(kind: CollectionKind, with_article: bool) -> String {
         CollectionKind::DynamicArray => "DynamicArray",
         CollectionKind::Stack => "Stack",
         CollectionKind::Queue => "Queue",
-        CollectionKind::Set => "Set",
-        CollectionKind::Multiset => "Multiset",
+        CollectionKind::OrderedSet => "OrderedSet",
+        CollectionKind::OrderedMultiset => "OrderedMultiset",
         CollectionKind::UnorderedSet => "UnorderedSet",
         CollectionKind::UnorderedMultiset => "UnorderedMultiset",
     };

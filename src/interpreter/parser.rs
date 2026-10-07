@@ -154,6 +154,11 @@ impl<'a> Parser<'a> {
                 cursor.expect_end()?;
                 Ok(StatementKind::Input(name))
             }
+            Keyword::Delete => {
+                let name = cursor.declared_name("a variable name after `delete`")?;
+                cursor.expect_end()?;
+                Ok(StatementKind::Delete(name))
+            }
             Keyword::Output => {
                 let mut values = vec![cursor.expression()?];
                 while cursor.eat_symbol(Symbol::Comma) {
@@ -683,8 +688,12 @@ impl<'a> Cursor<'a> {
             BuiltinType::DynamicArray => self.collection_type(CollectionKind::DynamicArray),
             BuiltinType::Stack => self.collection_type(CollectionKind::Stack),
             BuiltinType::Queue => self.collection_type(CollectionKind::Queue),
-            BuiltinType::Set => self.collection_type(CollectionKind::Set),
-            BuiltinType::Multiset => self.collection_type(CollectionKind::Multiset),
+            BuiltinType::Set | BuiltinType::OrderedSet => {
+                self.collection_type(CollectionKind::OrderedSet)
+            }
+            BuiltinType::Multiset | BuiltinType::OrderedMultiset => {
+                self.collection_type(CollectionKind::OrderedMultiset)
+            }
             BuiltinType::UnorderedSet => self.collection_type(CollectionKind::UnorderedSet),
             BuiltinType::UnorderedMultiset => {
                 self.collection_type(CollectionKind::UnorderedMultiset)
@@ -1352,6 +1361,7 @@ mod tests {
                 format!("{target} = {}", show_expression(value))
             }
             StatementKind::Input(name) => format!("input {name}"),
+            StatementKind::Delete(name) => format!("delete {name}"),
             StatementKind::Output(values) => format!("output {}", list(values)),
             StatementKind::Global(names) => format!("global {}", names.join(", ")),
             StatementKind::Nonlocal(names) => format!("nonlocal {}", names.join(", ")),
@@ -1535,7 +1545,7 @@ mod tests {
             expr("Tuple<Integer, String>(B)"),
             "(new Tuple<Integer, String> B)"
         );
-        assert_eq!(expr("Set<Point>()"), "(new Set<struct Point>)");
+        assert_eq!(expr("Set<Point>()"), "(new OrderedSet<struct Point>)");
         assert_eq!(expr("Stack([1, 2]).size()"), "(.size (new Stack [1, 2]))");
     }
 
@@ -1576,8 +1586,10 @@ mod tests {
         assert_eq!(one("DynamicArray A"), "DynamicArray A");
         assert_eq!(one("Stack A"), "Stack A");
         assert_eq!(one("Queue A"), "Queue A");
-        assert_eq!(one("Set A"), "Set A");
-        assert_eq!(one("Multiset A"), "Multiset A");
+        assert_eq!(one("Set A"), "OrderedSet A");
+        assert_eq!(one("OrderedSet A"), "OrderedSet A");
+        assert_eq!(one("Multiset A"), "OrderedMultiset A");
+        assert_eq!(one("OrderedMultiset A"), "OrderedMultiset A");
         assert_eq!(one("Dictionary D"), "Dictionary D");
         assert_eq!(one("Dictionary D"), "Dictionary D");
     }
@@ -1797,7 +1809,7 @@ mod tests {
             one("Point P = Point(1, 2)"),
             "struct Point P = (call Point 1 2)"
         );
-        assert_eq!(one("Set<Point> S"), "Set<struct Point> S");
+        assert_eq!(one("Set<Point> S"), "OrderedSet<struct Point> S");
     }
 
     #[test]
@@ -2583,5 +2595,23 @@ output C()
         // `A[0]` is `A.get(0)`: the lexer puts the generated `.` at the column of the `[`
         let access = first_expression("output A[0]");
         assert_eq!(position(&access), (1, 9));
+    }
+
+    #[test]
+    fn delete_statements() {
+        assert_eq!(one("delete X"), "delete X");
+        assert_eq!(one("DELETE X"), "delete X");
+        assert_error("delete", 1, "expected a variable name after `delete`");
+        assert_error("delete X, Y", 1, "unexpected");
+        assert_error("delete 1", 1, "expected a variable name");
+        assert_error("delete A[0]", 1, "unexpected");
+        // a delete is a use of the name, so `global` has to come first
+        assert_error(
+            "procedure P() begin\n delete X\n global X\nend procedure",
+            3,
+            "used before",
+        );
+        // `delete` is a keyword, but a word after a `.` is a name
+        assert_eq!(expr("A.delete()"), "(.delete A)");
     }
 }

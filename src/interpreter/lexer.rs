@@ -7,11 +7,81 @@
 //!    rewrites `match`, `until`, for and for-each into `if` / `while`.
 
 use super::error::Error;
+use super::limits::{Limit, SourceStatement};
 use super::token::{BuiltinType, Keyword, Line, Symbol, Token, TokenKind};
 
 /// Turns the source of a program into lines of tokens.
 pub fn lex(source: &str) -> Result<Vec<Line>, Error> {
     desugar(scan(source)?)
+}
+
+/// [`lex`], and the statements of the source for the static limits. They are listed before
+/// `match`, `until` and the `for` loops are rewritten, so the program is counted as it was
+/// written ([design 6](../../.claude/docs/design.md)).
+pub fn lex_counted(source: &str) -> Result<(Vec<Line>, Vec<SourceStatement>), Error> {
+    let scanned = scan(source)?;
+    let statements = source_statements(&scanned);
+    Ok((desugar(scanned)?, statements))
+}
+
+/// The statements of the source and the limits each of them counts for. A line that only
+/// belongs to a statement (`else`, `case`, `end ...`) and the attributes of a structure are
+/// not statements.
+fn source_statements(lines: &[Line]) -> Vec<SourceStatement> {
+    use Limit as L;
+    let mut result = Vec::new();
+    let mut in_structure = false;
+    for line in lines {
+        let first = &line.tokens[0];
+        let mut counts = vec![L::Statements];
+        match &first.kind {
+            TokenKind::Keyword(Keyword::EndStructure) => {
+                in_structure = false;
+                continue;
+            }
+            _ if in_structure => continue,
+            TokenKind::Keyword(keyword) => match keyword {
+                // only the statement itself is counted: the variables are a runtime limit
+                Keyword::Let | Keyword::Const => {}
+                Keyword::Input => counts.push(L::InputStatements),
+                Keyword::Output => counts.push(L::OutputStatements),
+                Keyword::Delete => counts.push(L::DeleteStatements),
+                Keyword::Global => counts.push(L::GlobalStatements),
+                Keyword::Nonlocal => counts.push(L::NonlocalStatements),
+                Keyword::Break => counts.push(L::BreakStatements),
+                Keyword::Continue => counts.push(L::ContinueStatements),
+                Keyword::Return => counts.push(L::ReturnStatements),
+                Keyword::If => counts.extend([L::IfStatements, L::ConditionStatements]),
+                Keyword::Match => counts.extend([L::MatchStatements, L::ConditionStatements]),
+                Keyword::Function => counts.extend([L::Functions, L::FunctionsAndProcedures]),
+                Keyword::Procedure => counts.extend([L::Procedures, L::FunctionsAndProcedures]),
+                Keyword::Structure => {
+                    in_structure = true;
+                    counts.push(L::StructureDefinitions);
+                }
+                Keyword::Loop => {
+                    counts.push(L::LoopStatements);
+                    let kind = line.tokens[1..].iter().find_map(|t| match t.kind {
+                        TokenKind::Keyword(Keyword::While) => Some(L::WhileLoopStatements),
+                        TokenKind::Keyword(Keyword::Until) => Some(L::UntilLoopStatements),
+                        TokenKind::Keyword(Keyword::From) => Some(L::ForLoopStatements),
+                        TokenKind::Keyword(Keyword::In) => Some(L::ForEachLoopStatements),
+                        _ => None,
+                    });
+                    counts.extend(kind);
+                }
+                // `else`, `case`, `end ...` and the like only belong to another statement
+                _ => continue,
+            },
+            _ => {}
+        }
+        result.push(SourceStatement {
+            line: line.number,
+            column: first.column,
+            counts,
+        });
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------

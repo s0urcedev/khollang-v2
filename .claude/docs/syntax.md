@@ -128,7 +128,7 @@ Identifiers name variables, constants, functions, procedures, parameters, custom
 Valid: `X`, `total`, `MY_VAR`, `_tmp`, `A1`. Invalid: `1A`, `my-var`, `#X`.
 
 - The character `#` is not allowed anywhere in a program, except inside string literals and comments. (The interpreter uses names starting with `#` internally, so they can never clash with names in the program.)
-- Built-in type names are reserved and **cannot** be used as identifiers: `Integer`, `Float`, `String`, `Boolean`, `Array`, `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary`, `Map`, `Stack`, `Queue`, `Set`, `Multiset`, `UnorderedSet`, `UnorderedMultiset`, `Tuple`, `FunctionType`, `ProcedureType`, `Iterator`. Type names are case-sensitive, so other spellings (`integer`, `INTEGER`) are ordinary identifiers.
+- Built-in type names are reserved and **cannot** be used as identifiers: `Integer`, `Float`, `String`, `Boolean`, `Array`, `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary`, `Map`, `Stack`, `Queue`, `Set`, `Multiset`, `OrderedSet`, `OrderedMultiset`, `UnorderedSet`, `UnorderedMultiset`, `Tuple`, `FunctionType`, `ProcedureType`, `Iterator`. Type names are case-sensitive, so other spellings (`integer`, `INTEGER`) are ordinary identifiers.
 
 ### 4.2 Reserved words
 
@@ -147,7 +147,7 @@ global    nonlocal
 true      false     none
 not       and       or        xor       imp       iff
 mod       div       pow
-in
+in        delete
 ```
 
 ## 5. Literals
@@ -240,7 +240,7 @@ Example: `output "She said \"hi\"\n\tand left"`.
 
 ### 6.2 Non-primitive types
 
-- Built-in collections: `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary` / `Map`, `Stack`, `Queue`, `Set`, `Multiset`, `UnorderedSet`, `UnorderedMultiset` ([section 13](#13-built-in-data-structures)).
+- Built-in collections: `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Dictionary` / `Map`, `Stack`, `Queue`, `OrderedSet` / `Set`, `OrderedMultiset` / `Multiset`, `UnorderedSet`, `UnorderedMultiset` ([section 13](#13-built-in-data-structures)).
 - `Tuple` ([13.9](#139-tuple)).
 - `FunctionType` and `ProcedureType`: the types of function values and procedure values ([6.8](#68-function-and-procedure-types)).
 - Custom structures: the name of a defined structure is a type ([section 14](#14-custom-structures)). Instances can be stored in collections like any other value, and `Array<S>` is valid for a structure `S`.
@@ -255,7 +255,7 @@ Every built-in collection and `Tuple` exists in an **untyped** and a **typed** f
 
 | Collection | Untyped form | Typed form |
 |---|---|---|
-| `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Stack`, `Queue`, `Set`, `Multiset`, `UnorderedSet`, `UnorderedMultiset`, `Iterator` | `Array` | `Array<T>` |
+| `Array` / `LazyArray`, `StaticArray`, `DynamicArray`, `Stack`, `Queue`, `OrderedSet` / `Set`, `OrderedMultiset` / `Multiset`, `UnorderedSet`, `UnorderedMultiset`, `Iterator` | `Array` | `Array<T>` |
 | `Dictionary` / `Map` | `Dictionary` | `Dictionary<K, T>` (keys of type *K*, values of type *T*) |
 | `Tuple` | `Tuple` | `Tuple<T1, T2, ...>` (one type per element, for **every** element) |
 
@@ -404,8 +404,8 @@ Any other argument is a runtime error: `Integer("abc")`, `Integer([1])`, `Float(
 
 | Constructor | Result |
 |---|---|
-| `FunctionType(F)` | the function *F* (same content) |
-| `ProcedureType(P)` | the procedure *P* (same content) |
+| `FunctionType(F)` | a new function with the same content as the function *F* |
+| `ProcedureType(P)` | a new procedure with the same content as the procedure *P* |
 | `ProcedureType(F)`, *F* a function | a procedure with the same parameters that runs *F* and ignores its result |
 | `FunctionType(P, R)`, *P* a procedure | a function with the same parameters that runs *P* and returns *R*. *R* is evaluated **once**, when the constructor is called |
 | `FunctionType(F, R)`, *F* a function | the same as `FunctionType(ProcedureType(F), R)`: *F* is run, its result is ignored and *R* is returned |
@@ -743,6 +743,18 @@ X <- Y
   - a **typed** variable, typed attribute or element of a typed collection: the value must fit the declared type ([6.6](#66-when-a-value-fits-a-type));
   - an element of a **Tuple**: an error (tuples are immutable).
 - Assigning to a plain name that is not declared implicitly declares an untyped variable ([8.2](#82-untyped-variables)).
+
+### 8.6 `delete`
+
+```
+delete X
+```
+
+- Removes the variable *X* and its content. *X* has to be a variable of the **local scopes** ([12.2](#122-block-scopes)): the current block and the enclosing blocks of the same function (or of the top level). A name that is not declared there is a runtime error, and so is a name that belongs to an outer function or the global scope, also when it was declared `global` / `nonlocal` ([12.5](#125-global-and-nonlocal)).
+- It works on every kind of variable: constants, typed and untyped variables, parameters, and function, procedure and structure definitions.
+- After it the name does not exist in this scope. It can be declared again, also with `let`, `const` or a type, because the earlier declaration is gone ([12.4](#124-declarations-redeclaration-and-shadowing)).
+- Only the **variable** goes away. If other variables refer to the same non-primitive value, it stays alive for them ([6.5](#65-copying-and-sharing)).
+- The point of `delete` is the limits that a teacher may set ([design 6](design.md#6-limits)): a deleted variable and its content no longer count.
 
 ## 9. Input, output and expression statements
 
@@ -1527,14 +1539,14 @@ A first-in, first-out queue.
 | `X.enqueue(Y)` | add *Y* to the back of the queue |
 | `X.dequeue()` | take the front value out of the queue and return it |
 
-### 13.7 `Set`
+### 13.7 `OrderedSet` / `Set`
 
-A set of unique values, kept in sorted order.
+A set of unique values, kept in sorted order. `Set` is another name for `OrderedSet`. The set without an order is `UnorderedSet` ([13.11](#1311-unorderedset)).
 
 | Syntax | Meaning |
 |---|---|
-| `Set X` / `Set<T> X` | declare *X* as an empty set |
-| `Set(B)` / `Set<T>(B)` | constructor with initial contents copied from collection *B* (duplicates are dropped). *B* is optional |
+| `Set X` / `Set<T> X` (also `OrderedSet`) | declare *X* as an empty set |
+| `Set(B)` / `Set<T>(B)` (also `OrderedSet`) | constructor with initial contents copied from collection *B* (duplicates are dropped). *B* is optional |
 | `X[I]` | get the value at index *I* **in sorted order** (there is no `X[I] = Y`) |
 | `X.is_empty()` | `true` if the set is empty |
 | `X.size()` | get the number of values |
@@ -1547,14 +1559,14 @@ A set of unique values, kept in sorted order.
 
 To get the values as another collection, use a constructor ([6.7](#67-type-casting)): `Array(X)` gives the values in sorted order.
 
-### 13.8 `Multiset`
+### 13.8 `OrderedMultiset` / `Multiset`
 
-Like `Set`, but the same value can be present more than once.
+Like `OrderedSet`, but the same value can be present more than once. `Multiset` is another name for `OrderedMultiset`.
 
 | Syntax | Meaning |
 |---|---|
-| `Multiset X` / `Multiset<T> X` | declare *X* as an empty multiset |
-| `Multiset(B)` / `Multiset<T>(B)` | constructor with initial contents copied from collection *B*. *B* is optional |
+| `Multiset X` / `Multiset<T> X` (also `OrderedMultiset`) | declare *X* as an empty multiset |
+| `Multiset(B)` / `Multiset<T>(B)` (also `OrderedMultiset`) | constructor with initial contents copied from collection *B*. *B* is optional |
 | `X[I]` | get the value at index *I* **in sorted order** (there is no `X[I] = Y`) |
 | `X.is_empty()` | `true` if the multiset is empty |
 | `X.size()` | get the number of values |
@@ -1752,6 +1764,7 @@ The following are errors according to this document:
 | `const X` without a value | error |
 | Combining `const` with a type (`const Integer X = 1`) | error |
 | Assigning to a constant (including `input` into a constant and using it as a for-loop variable) | error |
+| `delete X` where *X* is not a variable of the local scopes (it is not declared, or it belongs to an outer scope) | runtime error |
 | Storing a value that does not fit the declared type (typed variable, parameter, attribute, function result, typed collection element), including `none` | runtime error |
 | Assigning to an element of a Tuple | error |
 | **Input** | |
@@ -1835,7 +1848,7 @@ Conventions:
 program        = block ;
 block          = { statement NL } ;
 
-statement      = declaration | assignment | input | output | expression_statement
+statement      = declaration | assignment | input | output | delete | expression_statement
                | if | match | loop | break | continue
                | function_def | procedure_def | return
                | structure_def | global | nonlocal ;
@@ -1853,6 +1866,7 @@ target         = identifier
 
 (* input / output / calls *)
 input          = "input" identifier ;
+delete         = "delete" identifier ;
 output         = "output" expr { "," expr } ;
 expression_statement = expr ;
 
@@ -1898,7 +1912,8 @@ type           = "Integer" | "Float" | "String" | "Boolean"
                | identifier ;                    (* a custom structure name *)
 collection     = "Array" | "LazyArray" | "StaticArray" | "DynamicArray"
                | "Stack" | "Queue"
-               | "Set" | "Multiset" | "UnorderedSet" | "UnorderedMultiset" ;
+               | "Set" | "OrderedSet" | "Multiset" | "OrderedMultiset"
+               | "UnorderedSet" | "UnorderedMultiset" ;
 
 (* expressions *)
 expr           = unary_op expr
@@ -1969,7 +1984,7 @@ V2 keeps V1's overall syntax, with these fixes, clarifications, changes and exte
 - **Block scopes:** each block body creates its own scope (V1: logical blocks have no scope of their own).
 - **Removed** the `Y -> X` assignment form. Assignment operators are `=`, `:=`, `<-`.
 - **Removed** `create T X`. Use a typed declaration `T X` instead.
-- **Removed** `delete`.
+- `delete X` is back with a clearer meaning: it removes a variable of the local scopes and its content ([8.6](#86-delete)).
 - **Removed** `Set.to_array()` and `Multiset.to_array()`. Collections are converted only through constructors, e.g. `Array(S)`.
 - Equality compares values, not identity or declared types ([7.3](#73-equality)).
 - `input X` behaves according to the kind of *X*. There is no separate `input T X` form.
@@ -1986,6 +2001,7 @@ V2 keeps V1's overall syntax, with these fixes, clarifications, changes and exte
 - Four kinds of variables: constants (`const X = Y`), typed (`T X = Y`, `T X`), explicit untyped (`let X = Y`, `let X`) and implicit untyped (assignment before declaration, `X = Y`). Only implicit untyped variables can be redeclared.
 - Typed collections `C<T>`, `Dictionary<K, T>`, alongside the untyped forms.
 - `UnorderedSet` and `UnorderedMultiset`: collections without an order, for values that cannot be ordered ([13.11](#1311-unorderedset), [13.12](#1312-unorderedmultiset)).
+- `OrderedSet` and `OrderedMultiset` are the long names of `Set` and `Multiset` ([13.7](#137-orderedset--set), [13.8](#138-orderedmultiset--multiset)).
 - The types `FunctionType` and `ProcedureType`, with the constructors `ProcedureType(F)` and `FunctionType(P, R)` ([6.7](#67-type-casting), [6.8](#68-function-and-procedure-types)).
 - Every constructor accepts a value of its own type (except that `Iterator` has no constructor).
 - The type `Iterator` / `Iterator<T>` for the iterators returned by `X.iterator()` ([13.10](#1310-iterators)).

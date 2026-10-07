@@ -33,6 +33,28 @@ pub enum VarKind {
 pub struct Variable {
     pub kind: VarKind,
     pub value: Value,
+    /// Whether the variable counts for the limits: parameters and the internal `#` names
+    /// do not.
+    pub counted: bool,
+}
+
+/// An implicit variable that an explicit declaration replaced in the same scope.
+pub struct Replaced {
+    pub value: Value,
+    pub counted: bool,
+}
+
+/// What an assignment did.
+pub enum Assigned {
+    /// The name was not declared: a new implicit variable.
+    Created,
+    /// The variable existed. This was its value.
+    Replaced { old: Value, counted: bool },
+}
+
+/// Whether a variable of this name counts for the limits.
+pub fn is_counted(name: &str) -> bool {
+    !name.starts_with('#')
 }
 
 pub struct Scope {
@@ -162,7 +184,7 @@ pub fn local_kind(scope: &ScopeRef, name: &str) -> Option<VarKind> {
 
 /// Assigns to a name ([syntax 12.3]). A name that is not among the local scopes is
 /// declared as a new implicit variable in the current scope.
-pub fn assign(scope: &ScopeRef, name: &str, value: Value) -> Result<(), Fail> {
+pub fn assign(scope: &ScopeRef, name: &str, value: Value) -> Result<Assigned, Fail> {
     match find_local(scope, name) {
         Some(local) => {
             let mut holder = local.holder.borrow_mut();
@@ -181,7 +203,9 @@ pub fn assign(scope: &ScopeRef, name: &str, value: Value) -> Result<(), Fail> {
                 }
                 _ => {}
             }
-            variable.value = value;
+            let counted = variable.counted;
+            let old = std::mem::replace(&mut variable.value, value);
+            Ok(Assigned::Replaced { old, counted })
         }
         None => {
             scope.borrow_mut().vars.insert(
@@ -189,16 +213,22 @@ pub fn assign(scope: &ScopeRef, name: &str, value: Value) -> Result<(), Fail> {
                 Variable {
                     kind: VarKind::Implicit,
                     value,
+                    counted: is_counted(name),
                 },
             );
+            Ok(Assigned::Created)
         }
     }
-    Ok(())
 }
 
 /// An explicit declaration: `let`, `const`, a typed declaration or a definition
 /// ([syntax 12.4]).
-pub fn declare(scope: &ScopeRef, name: &str, kind: VarKind, value: Value) -> Result<(), Fail> {
+pub fn declare(
+    scope: &ScopeRef,
+    name: &str,
+    kind: VarKind,
+    value: Value,
+) -> Result<Option<Replaced>, Fail> {
     if let Some(local) = find_local(scope, name) {
         if local.linked {
             return Err(format!(
@@ -217,19 +247,53 @@ pub fn declare(scope: &ScopeRef, name: &str, kind: VarKind, value: Value) -> Res
         // an implicit variable of an enclosing block is shadowed, one of this scope is
         // replaced: both are a new variable in this scope
     }
-    scope
-        .borrow_mut()
-        .vars
-        .insert(name.to_string(), Variable { kind, value });
-    Ok(())
+    let old = scope.borrow_mut().vars.insert(
+        name.to_string(),
+        Variable {
+            kind,
+            value,
+            counted: is_counted(name),
+        },
+    );
+    // an implicit variable of this very scope is replaced
+    Ok(old.map(|old| Replaced {
+        value: old.value,
+        counted: old.counted,
+    }))
 }
 
 /// Declares a parameter in a fresh function scope.
 pub fn declare_parameter(scope: &ScopeRef, name: &str, kind: VarKind, value: Value) {
-    scope
+    scope.borrow_mut().vars.insert(
+        name.to_string(),
+        Variable {
+            kind,
+            value,
+            counted: false,
+        },
+    );
+}
+
+/// `delete X`: removes a variable of the local scopes. Returns its value, and whether it
+/// counted for the limits.
+pub fn remove_local(scope: &ScopeRef, name: &str) -> Result<(Value, bool), Fail> {
+    let Some(local) = find_local(scope, name) else {
+        return Err(format!(
+            "`{name}` cannot be deleted: it is not a variable of the local scopes"
+        ));
+    };
+    if local.linked {
+        return Err(format!(
+            "`{name}` cannot be deleted: it is a variable of an outer scope"
+        ));
+    }
+    let removed = local
+        .holder
         .borrow_mut()
         .vars
-        .insert(name.to_string(), Variable { kind, value });
+        .remove(name)
+        .expect("a found name has a variable");
+    Ok((removed.value, removed.counted))
 }
 
 /// The scope of the global variables.

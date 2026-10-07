@@ -14,7 +14,7 @@ use super::context::Context;
 use super::error::Error;
 use super::input;
 use super::ops;
-use super::scope::{self, ScopeKind, VarKind, new_scope};
+use super::scope::{self, Assigned, Replaced, ScopeKind, ScopeRef, VarKind, new_scope};
 use super::value::*;
 
 /// What a statement tells the enclosing block to do next.
@@ -36,14 +36,56 @@ pub fn run_statements(block: &Block, ctx: &mut Context) -> Result<Flow, Error> {
     Ok(Flow::Normal)
 }
 
+/// The variables of a scope that ends are given back to the limits, with their values: a
+/// primitive, and an object (with what is inside it) that nothing else refers to.
+///
+/// Nothing is given back when something still uses the scope, which is a function that was
+/// defined in it and is still alive: it can reach the variables.
+fn end_scope(ctx: &mut Context, scope: &ScopeRef) {
+    if !ctx.tracker.is_active() || scope_in_use(scope) {
+        return;
+    }
+    let scope = scope.borrow();
+    let mut values = Vec::with_capacity(scope.vars.len());
+    for variable in scope.vars.values() {
+        values.push((&variable.value, variable.counted));
+    }
+    ctx.tracker.ended(&values);
+}
+
+/// Whether anything but the code that has just run still refers to the scope: a function
+/// that was defined in it and that is held by something else than the scope's own
+/// variables, or a scope inside it that is still alive.
+fn scope_in_use(scope: &ScopeRef) -> bool {
+    // the caller holds one reference
+    let references = Rc::strong_count(scope) - 1;
+    let dead_functions = scope
+        .borrow()
+        .vars
+        .values()
+        .filter(|variable| match &variable.value {
+            Value::Callable(callable) => {
+                Rc::strong_count(callable) == 1
+                    && matches!(
+                        &callable.body,
+                        CallableBody::User { scope: defined_in, .. } if Rc::ptr_eq(defined_in, scope)
+                    )
+            }
+            _ => false,
+        })
+        .count();
+    references > dead_functions
+}
+
 impl Block {
     /// Executes the statements in order in a new scope. Stops as soon as one returns a
     /// `Flow` other than `Normal`.
     pub fn execute(&self, ctx: &mut Context) -> Result<Flow, Error> {
         let inner = new_scope(ScopeKind::Block, Some(&ctx.scope));
-        let outer = std::mem::replace(&mut ctx.scope, inner);
+        let outer = std::mem::replace(&mut ctx.scope, inner.clone());
         let result = run_statements(self, ctx);
         ctx.scope = outer;
+        end_scope(ctx, &inner);
         result
     }
 }
@@ -53,9 +95,19 @@ impl Statement {
         Error::new(self.line, Some(self.column), message)
     }
 
+    /// Executes the statement, and then checks the limits that it may have gone over.
+    #[inline(always)]
+    pub fn execute(&self, ctx: &mut Context) -> Result<Flow, Error> {
+        let flow = self.execute_hot(ctx)?;
+        if ctx.tracker.has_pending() {
+            ctx.tracker.settle().map_err(|m| self.fail(m))?;
+        }
+        Ok(flow)
+    }
+
     /// The statements that run most often. Everything else is in [`Self::execute_other`],
     /// so that the stack frame of a deep recursion stays small.
-    pub fn execute(&self, ctx: &mut Context) -> Result<Flow, Error> {
+    fn execute_hot(&self, ctx: &mut Context) -> Result<Flow, Error> {
         match &self.kind {
             StatementKind::Execute(expression) => {
                 match &expression.kind {
@@ -115,13 +167,11 @@ impl Statement {
                     Some(value) => value.evaluate(ctx, None)?,
                     None => Value::None,
                 };
-                scope::declare(&ctx.scope, name, VarKind::Explicit, value)
-                    .map_err(|m| self.fail(m))?;
+                self.declare(ctx, name, VarKind::Explicit, value)?;
             }
             StatementKind::Const { name, value } => {
                 let value = value.evaluate(ctx, None)?;
-                scope::declare(&ctx.scope, name, VarKind::Constant, value)
-                    .map_err(|m| self.fail(m))?;
+                self.declare(ctx, name, VarKind::Constant, value)?;
             }
             StatementKind::Typed { ty, name, value } => {
                 ctx.check_type(ty).map_err(|m| self.fail(m))?;
@@ -135,8 +185,7 @@ impl Statement {
                     }
                     None => ctx.default_value(ty).map_err(|m| self.fail(m))?,
                 };
-                scope::declare(&ctx.scope, name, VarKind::Typed(ty.clone()), value)
-                    .map_err(|m| self.fail(m))?;
+                self.declare(ctx, name, VarKind::Typed(ty.clone()), value)?;
             }
             StatementKind::Function {
                 name,
@@ -146,8 +195,8 @@ impl Statement {
             } => {
                 let value =
                     self.define(ctx, name, true, return_type.as_ref(), parameters, body)?;
-                scope::declare(&ctx.scope, name, VarKind::Explicit, value)
-                    .map_err(|m| self.fail(m))?;
+                ctx.tracker.created(&value).map_err(|m| self.fail(m))?;
+                self.declare(ctx, name, VarKind::Explicit, value)?;
             }
             StatementKind::Procedure {
                 name,
@@ -155,8 +204,8 @@ impl Statement {
                 body,
             } => {
                 let value = self.define(ctx, name, false, None, parameters, body)?;
-                scope::declare(&ctx.scope, name, VarKind::Explicit, value)
-                    .map_err(|m| self.fail(m))?;
+                ctx.tracker.created(&value).map_err(|m| self.fail(m))?;
+                self.declare(ctx, name, VarKind::Explicit, value)?;
             }
             StatementKind::Structure { name, attributes } => {
                 self.define_structure(ctx, name, attributes)?;
@@ -167,7 +216,7 @@ impl Statement {
                     _ => None,
                 };
                 let value = value.evaluate(ctx, expected.as_ref())?;
-                scope::assign(&ctx.scope, target, value).map_err(|m| self.fail(m))?;
+                self.assign(ctx, target, value)?;
             }
             StatementKind::Input(name) => {
                 let value = match scope::local_kind(&ctx.scope, name) {
@@ -180,7 +229,15 @@ impl Statement {
                     _ => input::read_value(ctx, None),
                 }
                 .map_err(|m| self.fail(m))?;
-                scope::assign(&ctx.scope, name, value).map_err(|m| self.fail(m))?;
+                ctx.tracker.created_graph(&value).map_err(|m| self.fail(m))?;
+                self.assign(ctx, name, value)?;
+            }
+            StatementKind::Delete(name) => {
+                let (value, counted) =
+                    scope::remove_local(&ctx.scope, name).map_err(|m| self.fail(m))?;
+                if counted {
+                    ctx.tracker.deleted(value);
+                }
             }
             StatementKind::Output(values) => {
                 let mut texts = Vec::with_capacity(values.len());
@@ -209,6 +266,45 @@ impl Statement {
             | StatementKind::Loop { .. } => unreachable!("handled by `execute`"),
         }
         Ok(Flow::Normal)
+    }
+
+    /// An explicit declaration, with the accounting of the limits.
+    fn declare(
+        &self,
+        ctx: &mut Context,
+        name: &str,
+        kind: VarKind,
+        value: Value,
+    ) -> Result<(), Error> {
+        let counted = scope::is_counted(name);
+        let replaced = scope::declare(&ctx.scope, name, kind, value.clone())
+            .map_err(|m| self.fail(m))?;
+        if !counted {
+            return Ok(());
+        }
+        // an implicit variable of this scope that the declaration replaced gives its value back
+        if let Some(Replaced { value: old, counted: true }) = replaced {
+            ctx.tracker.released_from_variable(&old);
+        }
+        ctx.tracker.stored_in_variable(&value).map_err(|m| self.fail(m))
+    }
+
+    /// An assignment, with the accounting of the limits.
+    fn assign(&self, ctx: &mut Context, name: &str, value: Value) -> Result<(), Error> {
+        let assigned = scope::assign(&ctx.scope, name, value.clone()).map_err(|m| self.fail(m))?;
+        match assigned {
+            Assigned::Created if scope::is_counted(name) => {
+                ctx.tracker
+                    .implicit_declared(self.line, self.column)
+                    .map_err(|m| self.fail(m))?;
+                ctx.tracker.stored_in_variable(&value).map_err(|m| self.fail(m))
+            }
+            Assigned::Replaced { old, counted: true } => {
+                ctx.tracker.released_from_variable(&old);
+                ctx.tracker.stored_in_variable(&value).map_err(|m| self.fail(m))
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Creates the value of a function or procedure definition. The default values of the
@@ -313,8 +409,7 @@ impl Statement {
             attributes: definitions,
             scope: ctx.scope.clone(),
         }));
-        scope::declare(&ctx.scope, name, VarKind::Explicit, definition)
-            .map_err(|m| self.fail(m))
+        self.declare(ctx, name, VarKind::Explicit, definition)
     }
 
     /// `global X` / `nonlocal X`: links the name to the variable of an outer scope.
@@ -485,7 +580,11 @@ impl Expression {
                 builtins::add_item(&collection, value).map_err(|m| self.error(m))?;
             }
         }
-        Ok(Value::Collection(collection))
+        let value = Value::Collection(collection);
+        ctx.tracker
+            .created_with_elements(&value)
+            .map_err(|m| self.error(m))?;
+        Ok(value)
     }
 
     #[inline(never)]
@@ -516,7 +615,11 @@ impl Expression {
             let hashed = to_key(&key_value).map_err(|m| key.error(m))?;
             dictionary.insert(hashed, key_value, value_value);
         }
-        Ok(Value::Dictionary(Rc::new(RefCell::new(dictionary))))
+        let value = Value::Dictionary(Rc::new(RefCell::new(dictionary)));
+        ctx.tracker
+            .created_with_elements(&value)
+            .map_err(|m| self.error(m))?;
+        Ok(value)
     }
 
     #[inline(never)]
@@ -540,7 +643,11 @@ impl Expression {
             }
             values.push(value);
         }
-        Ok(Value::tuple(values, types))
+        let value = Value::tuple(values, types);
+        ctx.tracker
+            .created_with_elements(&value)
+            .map_err(|m| self.error(m))?;
+        Ok(value)
     }
 
     #[inline(never)]
@@ -690,6 +797,7 @@ impl Expression {
     ) -> Result<Value, Error> {
         match &callable.body {
             CallableBody::Nothing => Ok(Value::None),
+            CallableBody::Same(inner) => self.invoke(ctx, inner, values),
             CallableBody::DropResult(inner) => {
                 self.invoke(ctx, inner, values)?;
                 Ok(Value::None)
@@ -727,13 +835,14 @@ impl Expression {
                     };
                     scope::declare_parameter(&call_scope, &parameter.name, kind, value);
                 }
-                let outer_scope = std::mem::replace(&mut ctx.scope, call_scope);
+                let outer_scope = std::mem::replace(&mut ctx.scope, call_scope.clone());
                 let outer_type = std::mem::replace(&mut ctx.return_type, return_type.clone());
                 ctx.depth += 1;
                 let flow = run_statements(body, ctx);
                 ctx.depth -= 1;
                 ctx.scope = outer_scope;
                 ctx.return_type = outer_type;
+                end_scope(ctx, &call_scope);
                 match flow? {
                     Flow::Return(Some(value)) => Ok(value),
                     _ if callable.is_function => Err(self.ended_without_value(callable)),

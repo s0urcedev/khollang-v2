@@ -7,6 +7,7 @@ use std::io::{BufRead, Write};
 use std::rc::Rc;
 
 use super::ast::{CollectionKind, Type};
+use super::limits::Tracker;
 use super::scope::{self, ScopeRef};
 use super::value::*;
 
@@ -20,6 +21,8 @@ pub struct Context<'io> {
     pub depth: usize,
     /// The deepest depth that a call may be at. A deeper call is an error.
     pub max_depth: usize,
+    /// The counters of the runtime limits.
+    pub tracker: Tracker,
     pub input: &'io mut dyn BufRead,
     pub output: &'io mut dyn Write,
 }
@@ -54,6 +57,15 @@ impl Context<'_> {
     /// The default value of a type ([syntax 6.4]). Collections and instances are new
     /// objects every time.
     pub fn default_value(&mut self, ty: &Type) -> Result<Value, Fail> {
+        let value = self.default_value_uncounted(ty)?;
+        // an instance counted itself when it was made
+        if !matches!(ty, Type::Structure(_)) {
+            self.tracker.created_with_elements(&value)?;
+        }
+        Ok(value)
+    }
+
+    fn default_value_uncounted(&mut self, ty: &Type) -> Result<Value, Fail> {
         Ok(match ty {
             Type::Integer => Value::Integer(0),
             Type::Float => Value::Float(0.0),
@@ -134,10 +146,12 @@ impl Context<'_> {
             };
             values.push(value);
         }
-        Ok(Value::Instance(Rc::new(RefCell::new(Instance {
+        let instance = Value::Instance(Rc::new(RefCell::new(Instance {
             def: def.clone(),
             values,
-        }))))
+        })));
+        self.tracker.created_with_elements(&instance)?;
+        Ok(instance)
     }
 }
 
@@ -154,7 +168,7 @@ pub fn nothing(is_function: bool) -> Value {
 impl CollectionKind {
     /// Whether the kind keeps its values in order (`Set`, `Multiset`).
     pub fn is_sorted(self) -> bool {
-        matches!(self, CollectionKind::Set | CollectionKind::Multiset)
+        matches!(self, CollectionKind::OrderedSet | CollectionKind::OrderedMultiset)
     }
 
     pub fn is_unordered(self) -> bool {

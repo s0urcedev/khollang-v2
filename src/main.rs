@@ -6,7 +6,25 @@ use std::io::{self, BufWriter};
 use std::process::ExitCode;
 use std::{env, fs, thread};
 
-const USAGE: &str = "Usage: khol <file> [limits-file]";
+const USAGE: &str = "Usage: khol <file> [limits-file]\nTry 'khol --help' for more information.";
+
+const HELP: &str = "\
+Usage: khol <file> [limits-file]
+
+Runs the Khollang program in <file>. The program reads standard input and writes
+standard output. Errors go to standard error as `line N, column M: message`.
+
+Arguments:
+  <file>         the program to run
+  [limits-file]  limits for the program: JSON if the name ends with .json, otherwise
+                 one `name: value` per line. A value is a whole number or null
+                 (unlimited). `default` sets every limit that is not mentioned.
+
+Options:
+  -h, --help     print this help and exit
+
+Exit status: 0 on success, 1 on an error in the program, its file or the limits
+file, 2 on wrong arguments.";
 
 /// The program runs on a thread with a big stack, so that deep recursion in the program
 /// does not overflow the stack of the interpreter. A recursion of 1,000,000 calls has to
@@ -36,6 +54,10 @@ fn run_program(source: String, limits: Limits) -> Option<std::thread::JoinHandle
 }
 
 fn main() -> ExitCode {
+    if env::args().skip(1).any(|argument| argument == "--help" || argument == "-h") {
+        println!("{HELP}");
+        return ExitCode::SUCCESS;
+    }
     let mut arguments = env::args().skip(1);
     let Some(path) = arguments.next() else {
         eprintln!("khol: missing file operand\n{USAGE}");

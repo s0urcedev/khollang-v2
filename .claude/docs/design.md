@@ -396,7 +396,10 @@ For now, `input` reads standard input and `output` writes standard output direct
 
   ```
   Usage: khol <file> [limits-file]
+  Try 'khol --help' for more information.
   ```
+
+- `khol --help` (or `-h`, anywhere among the arguments) prints a short help to standard output: the usage, the arguments, the limits file formats and the exit statuses. It exits with status 0 and runs nothing.
 
 - An unreadable or missing file, and an unreadable or invalid limits file, are reported to standard error and also exit with a non-zero status.
 - An `Error` ([3.1](#31-output-format)) is printed to standard error with its `Display` form (`line N, column M: message`) and the exit status is non-zero. This holds for lexer, parser and runtime errors. A runtime error keeps everything the program already wrote to standard output.

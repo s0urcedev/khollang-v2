@@ -1,0 +1,63 @@
+// 10 · Input: a small gradebook
+// Reads the number of students, then one line per student:
+//
+//     3
+//     ("Ann", [90, 85, 97])
+//     ("Bob", [60, 72, 58])
+//     (Cid, [80, 95, 79])
+//
+// Quotes are optional around text: Cid is read as the String "Cid".
+
+structure Student has
+    String NAME
+    Array GRADES
+    Float AVERAGE
+end structure
+
+function Float MEAN(Array GRADES) begin
+    Integer SUM = 0
+    loop for G in GRADES do
+        SUM = SUM + G
+    end loop
+    return Float(SUM) / Float(GRADES.size())
+end function
+
+function String LETTER(Float AVERAGE) begin
+    if AVERAGE >= 90.0 then
+        return "A"
+    else if AVERAGE >= 75.0 then
+        return "B"
+    else if AVERAGE >= 60.0 then
+        return "C"
+    end if
+    return "F"
+end function
+
+Integer COUNT                       // a typed target: the line must be an Integer
+input COUNT
+
+Array<Student> STUDENTS
+loop I from 0 to COUNT - 1 do
+    Tuple<String, Array> ROW        // the line must be a (String, Array) tuple
+    input ROW
+    STUDENTS[I] = Student(ROW[0], ROW[1], MEAN(ROW[1]))
+end loop
+
+Dictionary<String, Integer> LETTERS = {"A": 0, "B": 0, "C": 0, "F": 0}
+Student BEST = STUDENTS[0]
+Float CLASS_TOTAL = 0.0
+loop for S in STUDENTS do
+    String GRADE = LETTER(S.AVERAGE)
+    LETTERS[GRADE] = LETTERS[GRADE] + 1
+    CLASS_TOTAL = CLASS_TOTAL + S.AVERAGE
+    if S.AVERAGE > BEST.AVERAGE then
+        BEST = S
+    end if
+    output S.NAME, S.GRADES, GRADE
+end loop
+
+output "Best:", BEST.NAME
+output "Class average:", Integer(CLASS_TOTAL / Float(COUNT))
+loop for GRADE in ["A", "B", "C", "F"] do
+    output GRADE, LETTERS[GRADE]
+end loop

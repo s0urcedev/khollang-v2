@@ -1,0 +1,84 @@
+// 03 · Control flow
+// if, match, the four loops, break and continue.
+
+// if / else if / else
+loop I from 1 to 15 do
+    if I mod 15 = 0 then
+        output "FizzBuzz"
+    else if I mod 3 = 0 then
+        output "Fizz"
+    else if I mod 5 = 0 then
+        output "Buzz"
+    else
+        output I
+    end if
+end loop
+
+// match compares with `=`, so it works on any value, tuples included
+loop for POINT in [(0, 0), (1, 0), (2, 2)] do
+    match POINT with
+        case (0, 0) then
+            output POINT, "is the origin"
+        case (1, 0) then
+            output POINT, "is one step right"
+        otherwise
+            output POINT, "is somewhere else"
+    end match
+end loop
+
+// while: the Collatz sequence of 6
+Integer N = 6
+Array<Integer> SEQUENCE = [N]
+loop while N <> 1 do
+    if N mod 2 = 0 then
+        N = N div 2
+    else
+        N = 3 * N + 1
+    end if
+    SEQUENCE[SEQUENCE.size()] = N   // writing past the end grows an Array
+end loop
+output SEQUENCE
+
+// until: the first power of two above 1000
+Integer POWER = 1
+loop until POWER > 1000 do
+    POWER = POWER * 2
+end loop
+output POWER
+
+// break and continue: odd numbers that are not multiples of 3, up to 15
+loop I from 1 to 100 do
+    if I > 15 then
+        break
+    end if
+    if I mod 2 = 0 OR I mod 3 = 0 then
+        continue
+    end if
+    output I
+end loop
+
+// A loop variable declared before the loop keeps its last value
+let LAST
+loop LAST from 1 to 3 do
+end loop
+output "LAST is", LAST
+
+// Nested loops: the first five primes after 100
+Integer FOUND = 0
+Integer CANDIDATE = 100
+loop while FOUND < 5 do
+    CANDIDATE = CANDIDATE + 1
+    Boolean PRIME = true            // a fresh variable on every iteration
+    Integer D = 2
+    loop while D * D <= CANDIDATE do
+        if CANDIDATE mod D = 0 then
+            PRIME = false
+            break
+        end if
+        D = D + 1
+    end loop
+    if PRIME then
+        output CANDIDATE
+        FOUND = FOUND + 1
+    end if
+end loop

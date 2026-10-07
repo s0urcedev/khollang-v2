@@ -1,0 +1,73 @@
+// 06 · Arrays, sharing and copies
+// Three kinds of arrays, typed and untyped, and how objects are shared.
+
+// Array (LazyArray) grows when written past its end
+Array<Integer> SQUARES
+loop I from 0 to 4 do
+    SQUARES[I] = I * I
+end loop
+output SQUARES, SQUARES.size()
+output SQUARES[10]                  // reading past the end gives the default, 0
+
+Array MIXED = [1, "two", 3.0, none, [5]]   // an untyped array holds anything
+output MIXED, MIXED.length()
+
+// StaticArray has a fixed length
+StaticArray<String> DAYS = StaticArray<String>(3, ["Mon", "Tue"])
+DAYS[2] = "Wed"
+output DAYS
+DAYS.resize(4)                      // a new length, and cleared contents
+output DAYS
+
+// DynamicArray changes its size through methods
+DynamicArray<Integer> D = [3, 1, 4]
+D.push(1)
+D.insert(0, 5)
+output D
+output D.pop(), D.remove(1)
+output D
+
+// Arrays are shared, so a procedure can sort one in place
+procedure SORT(DynamicArray<Integer> ITEMS) begin
+    loop I from 1 to ITEMS.size() - 1 do
+        Integer KEY = ITEMS[I]
+        Integer J = I - 1
+        // short-circuit: ITEMS[J] is not read once J is -1
+        loop while J >= 0 AND ITEMS[J] > KEY do
+            ITEMS[J + 1] = ITEMS[J]
+            J = J - 1
+        end loop
+        ITEMS[J + 1] = KEY
+    end loop
+end procedure
+
+DynamicArray<Integer> NUMBERS = [9, 4, 7, 1, 8, 2]
+SORT(NUMBERS)
+output NUMBERS
+
+// Assignment shares; copy() copies one level; deep_copy() copies everything
+A = [[1, 2], [3]]
+SAME = A
+SHALLOW = A.copy()
+DEEP = A.deep_copy()
+A[0][0] = 99
+A[1] = [0]
+output SAME, SHALLOW, DEEP
+
+// Equality compares contents; the three kinds of array compare with each other
+output [1, 2] = DynamicArray([1, 2]), [1, 2] = (1, 2)
+
+// Arrays of arrays: Pascal's triangle
+Array<Array<Integer>> PASCAL
+loop ROW from 0 to 5 do
+    Array<Integer> LINE
+    loop K from 0 to ROW do
+        if K = 0 OR K = ROW then
+            LINE[K] = 1
+        else
+            LINE[K] = PASCAL[ROW - 1][K - 1] + PASCAL[ROW - 1][K]
+        end if
+    end loop
+    PASCAL[ROW] = LINE
+    output LINE
+end loop

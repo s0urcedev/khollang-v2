@@ -1,0 +1,45 @@
+// 01 · Basics
+// One statement per line, comments, output, and the four kinds of variables.
+
+output "Hello, Khollang!"
+output "Several values:", 1, 2.5, true, none     // joined by single spaces
+output "She said \"hi\"\n\tand left"             // escapes: \" \\ \n \t
+
+// A constant can never be reassigned
+const GREETING = "Welcome"
+
+// Typed variables hold only values of their type
+Integer COUNT                 // no value: the default 0
+String NAME = "Ann"
+Float RATIO := 0.75           // `=`, `:=` and `<-` all assign
+Boolean READY <- true
+
+// An explicit untyped variable holds anything
+let ANYTHING = 42
+ANYTHING = "now a String"
+
+// An implicit untyped variable is declared by its first assignment
+TOTAL = COUNT + 10
+
+output GREETING + ", " + NAME
+output COUNT, RATIO, READY, ANYTHING, TOTAL
+
+// Keywords accept three spellings; names are case-sensitive
+X = 1
+x = 2
+IF X <> x THEN
+    Output "X and x are two different variables"
+End If
+
+// How collections and tuples are written
+output [1, "two", [3.0]], {"key": (4,)}, (), (5, 6)
+
+// An implicit variable may be redeclared explicitly, once
+LATER = 5
+let LATER = 6
+output LATER
+
+// `delete` removes a variable, so its name can be declared again
+delete LATER
+Integer LATER = 7
+output LATER

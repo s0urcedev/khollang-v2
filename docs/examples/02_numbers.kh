@@ -1,0 +1,43 @@
+// 02 · Numbers, logic and conversions
+// Integer and Float are separate types and are never mixed implicitly.
+
+Integer A = 17
+Integer B = 5
+output A + B, A - B, A * B
+output A / B                        // `/` always gives a Float
+output A div B, A mod B             // Integer division and remainder
+output -A div B, -A mod B           // both round toward negative infinity
+output 2 pow 10, 2 pow -1, -2 pow 2
+
+Float F = 2.5
+output F * 2.0
+// output F * 2                     // error: a Float and an Integer
+output F * Float(2), Integer(F) + 2  // explicit conversions instead
+
+// Conversions are calls of a type name
+output Integer("42") + 1, Float("0.5"), String(3) + "3", Boolean("TRUE"), Boolean(0)
+output "Count: " + String(A)        // Strings join only with Strings
+
+// Comparisons and logic: the logical operators bind looser than comparisons
+output A > B AND B > 0, NOT (A = B), A = 17.0, "apple" < "banana"
+output true XOR true, false IMP true, true IFF false
+
+// AND, OR and IMP short-circuit: the division by zero never runs
+output false AND 1 div 0 = 0
+
+// Bitwise operators work on Integers
+output 12 & 10, 12 | 10, 12 ^ 10, ~0, 1 << 4, -8 >> 1
+output 12 ==> 10, 12 <==> 10
+
+// Precedence follows Python; `pow` is right-associative
+output 2 + 3 * 4, (2 + 3) * 4, 2 pow 3 pow 2
+output 1 + 2 = 3 AND 5 & 1 = 1
+
+// A small computation: the digits of a number, from the last one
+Integer N = 90417
+Integer DIGIT_SUM = 0
+loop while N > 0 do
+    DIGIT_SUM = DIGIT_SUM + N mod 10
+    N = N div 10
+end loop
+output "Digit sum:", DIGIT_SUM

@@ -1,0 +1,93 @@
+// 09 · Custom structures
+// Points and shapes, then a binary search tree built from nodes.
+
+structure Point has
+    Integer X
+    Integer Y
+end structure
+
+structure Shape has
+    String NAME = "shape"
+    Array<Point> CORNERS
+end structure
+
+function Float DISTANCE(Point A, Point B) begin
+    Integer DX = A.X - B.X
+    Integer DY = A.Y - B.Y
+    return Float(DX * DX + DY * DY) pow 0.5
+end function
+
+function Float PERIMETER(Shape S) begin
+    Float SUM = 0.0
+    Integer COUNT = S.CORNERS.size()
+    loop I from 0 to COUNT - 1 do
+        SUM = SUM + DISTANCE(S.CORNERS[I], S.CORNERS[(I + 1) mod COUNT])
+    end loop
+    return SUM
+end function
+
+Point ORIGIN                        // default attributes: (0, 0)
+Shape TRIANGLE = Shape("triangle", [ORIGIN, Point(3, 0), Point(3, 4)])
+output TRIANGLE.NAME, PERIMETER(TRIANGLE)
+
+Shape SQUARE                        // NAME = "shape", empty CORNERS
+SQUARE.NAME = "square"
+loop for CORNER in [(0, 0), (2, 0), (2, 2), (0, 2)] do
+    SQUARE.CORNERS[SQUARE.CORNERS.size()] = Point(CORNER[0], CORNER[1])
+end loop
+output SQUARE.NAME, PERIMETER(SQUARE)
+
+// Instances are shared like collections, and compared by their attributes
+Point P = Point(1, 2)
+Point SAME = P
+Point COPY = P.copy()
+P.X = 10
+output SAME.X, COPY.X, COPY = Point(1, 2), P = COPY
+
+// A binary search tree: untyped attributes hold either none or a Node
+structure Node has
+    Integer VALUE
+    LEFT
+    RIGHT
+end structure
+
+function INSERT(ROOT, Integer VALUE) begin
+    if ROOT = none then
+        return Node(VALUE)
+    end if
+    if VALUE < ROOT.VALUE then
+        ROOT.LEFT = INSERT(ROOT.LEFT, VALUE)
+    else
+        ROOT.RIGHT = INSERT(ROOT.RIGHT, VALUE)
+    end if
+    return ROOT
+end function
+
+procedure IN_ORDER(NODE, Array<Integer> OUT) begin
+    if NODE = none then
+        return
+    end if
+    IN_ORDER(NODE.LEFT, OUT)
+    OUT[OUT.size()] = NODE.VALUE
+    IN_ORDER(NODE.RIGHT, OUT)
+end procedure
+
+function Integer HEIGHT(NODE) begin
+    if NODE = none then
+        return 0
+    end if
+    Integer LEFT = HEIGHT(NODE.LEFT)
+    Integer RIGHT = HEIGHT(NODE.RIGHT)
+    if LEFT > RIGHT then
+        return LEFT + 1
+    end if
+    return RIGHT + 1
+end function
+
+let TREE = none
+loop for N in [50, 30, 70, 20, 40, 60, 80, 35] do
+    TREE = INSERT(TREE, N)
+end loop
+Array<Integer> SORTED
+IN_ORDER(TREE, SORTED)
+output SORTED, "height:", HEIGHT(TREE)

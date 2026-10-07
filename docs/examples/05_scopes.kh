@@ -1,0 +1,78 @@
+// 05 · Scopes and closures
+// Every block has its own scope; functions see outer variables but rebind them only
+// with `global` or `nonlocal`.
+
+// Variables declared in a block end with it
+Integer TOTAL = 0
+loop I from 1 to 3 do
+    Integer DOUBLE = I * 2          // a new DOUBLE on every iteration
+    TOTAL = TOTAL + DOUBLE          // TOTAL of the enclosing block is local here
+end loop
+output TOTAL
+
+// Reading an outer variable is fine; assigning creates a new local one
+LEVEL = "global"
+procedure SHOW_LEVEL() begin
+    output "reads:", LEVEL
+    LEVEL = "local"
+    output "now:", LEVEL
+end procedure
+SHOW_LEVEL()
+output "after:", LEVEL
+
+// `global` rebinds a top-level variable
+Integer CALLS = 0
+procedure COUNT_CALL() begin
+    global CALLS
+    CALLS = CALLS + 1
+end procedure
+COUNT_CALL()
+COUNT_CALL()
+output "calls:", CALLS
+
+// Changing the contents of a shared object needs no declaration
+LOG = []
+procedure LOG_MESSAGE(String MESSAGE) begin
+    LOG[LOG.size()] = MESSAGE
+end procedure
+LOG_MESSAGE("start")
+LOG_MESSAGE("stop")
+output LOG
+
+// Closures: each counter keeps its own COUNT, rebound with `nonlocal`
+function MAKE_COUNTER(Integer STEP = 1) begin
+    Integer COUNT = 0
+    function NEXT() begin
+        nonlocal COUNT
+        COUNT = COUNT + STEP
+        return COUNT
+    end function
+    return NEXT
+end function
+
+BY_ONE = MAKE_COUNTER()
+BY_TEN = MAKE_COUNTER(10)
+output BY_ONE(), BY_ONE(), BY_TEN(), BY_ONE(), BY_TEN()
+
+// A block may shadow an implicit variable of an enclosing block
+COLOR = "red"
+if true then
+    let COLOR = "blue"
+    output "inside:", COLOR
+end if
+output "outside:", COLOR
+
+// Definitions run in order and belong to their block
+if TOTAL > 10 then
+    function Integer HALF(Integer X) begin
+        return X div 2
+    end function
+    output "half:", HALF(TOTAL)
+end if
+// HALF does not exist here any more
+
+// `delete` frees a name of the current scope
+let BUFFER = [1, 2, 3]
+delete BUFFER
+let BUFFER = "reused"
+output BUFFER

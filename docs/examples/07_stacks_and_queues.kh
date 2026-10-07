@@ -1,0 +1,76 @@
+// 07 · Stacks and queues
+// A calculator, a bracket checker and a maze solver.
+
+// Stack: evaluate an expression in reverse Polish notation
+function Integer EVALUATE(Array TOKENS) begin
+    Stack<Integer> STACK
+    loop for TOKEN in TOKENS do
+        match TOKEN with
+            case "+" then
+                STACK.push(STACK.pop() + STACK.pop())
+            case "*" then
+                STACK.push(STACK.pop() * STACK.pop())
+            case "-" then
+                Integer RIGHT = STACK.pop()
+                STACK.push(STACK.pop() - RIGHT)
+            otherwise
+                STACK.push(TOKEN)
+        end match
+    end loop
+    return STACK.pop()
+end function
+
+output EVALUATE([3, 4, "+", 2, "*"])     // (3 + 4) * 2
+output EVALUATE([10, 2, 3, "*", "-"])    // 10 - 2 * 3
+
+// Stack: are the brackets balanced?
+function Boolean BALANCED(Array<String> TOKENS) begin
+    Map<String, String> OPENER = {")": "(", "]": "[", "}": "{"}
+    Stack<String> OPEN
+    loop for T in TOKENS do
+        if NOT OPENER.has(T) then
+            OPEN.push(T)
+        else if OPEN.is_empty() OR OPEN.pop() <> OPENER[T] then
+            return false
+        end if
+    end loop
+    return OPEN.is_empty()
+end function
+
+output BALANCED(["(", "[", "]", "{", "}", ")"]), BALANCED(["(", "]"]), BALANCED([")"])
+
+// Queue: the shortest way through a maze (0 is free, 1 is a wall)
+Array<Array<Integer>> MAZE
+MAZE[0] = [0, 0, 0, 1, 0]
+MAZE[1] = [1, 1, 0, 1, 0]
+MAZE[2] = [0, 0, 0, 0, 0]
+MAZE[3] = [0, 1, 1, 1, 0]
+MAZE[4] = [0, 0, 0, 1, 0]
+
+Tuple<Integer, Integer> START = (0, 0)
+Tuple<Integer, Integer> GOAL = (4, 4)
+Array<Tuple<Integer, Integer>> MOVES = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+Dictionary<Tuple<Integer, Integer>, Integer> DISTANCE = {START: 0}
+Queue<Tuple<Integer, Integer>> FRONTIER = [START]
+
+loop while NOT FRONTIER.is_empty() do
+    Tuple<Integer, Integer> CELL = FRONTIER.dequeue()
+    loop for MOVE in MOVES do
+        Tuple<Integer, Integer> NEXT = (CELL[0] + MOVE[0], CELL[1] + MOVE[1])
+        Integer R = NEXT[0]
+        Integer C = NEXT[1]
+        if R >= 0 AND R < 5 AND C >= 0 AND C < 5 then
+            if MAZE[R][C] = 0 AND NOT DISTANCE.has(NEXT) then
+                DISTANCE[NEXT] = DISTANCE[CELL] + 1
+                FRONTIER.enqueue(NEXT)
+            end if
+        end if
+    end loop
+end loop
+output "Steps from", START, "to", GOAL, "=", DISTANCE[GOAL]
+
+// Order: a Stack is written bottom to top, a Queue front to back
+Stack<String> PLATES = Stack<String>(["first", "second", "third"])
+Queue<String> LINE = Queue<String>(["first", "second", "third"])
+output PLATES, LINE
+output "taken:", PLATES.pop(), LINE.dequeue()   // last in / first in comes out

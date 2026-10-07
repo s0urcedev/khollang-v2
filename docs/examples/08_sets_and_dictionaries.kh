@@ -1,0 +1,82 @@
+// 08 · Sets, multisets, dictionaries and iterators
+// Counting and grouping words.
+
+Array<String> WORDS = ["the", "cat", "sat", "on", "the", "mat", "by", "the", "cat"]
+
+// Set: unique values in sorted order
+Set<String> UNIQUE = Set<String>(WORDS)
+output UNIQUE, UNIQUE.size(), UNIQUE[0], UNIQUE.contains("dog")
+
+// Multiset: sorted, duplicates kept
+Multiset<String> BAG = Multiset<String>(WORDS)
+BAG.remove("the")                   // removes one "the"
+output BAG
+
+// Dictionary: count the words
+Dictionary<String, Integer> COUNTS
+loop for WORD in WORDS do
+    if COUNTS.has(WORD) then
+        COUNTS[WORD] = COUNTS[WORD] + 1
+    else
+        COUNTS[WORD] = 1
+    end if
+end loop
+// A dictionary has no fixed order, so walk the sorted set of its keys
+loop for WORD in UNIQUE do
+    output WORD, COUNTS[WORD]
+end loop
+
+// Dictionary of arrays: group the words by how often they appear
+Dictionary<Integer, Array<String>> BY_COUNT
+Set<Integer> FREQUENCIES
+loop for WORD in UNIQUE do
+    Integer TIMES = COUNTS[WORD]
+    if NOT BY_COUNT.has(TIMES) then
+        BY_COUNT[TIMES] = Array<String>()
+    end if
+    BY_COUNT[TIMES][BY_COUNT[TIMES].size()] = WORD
+    FREQUENCIES.add(TIMES)
+end loop
+loop for TIMES in FREQUENCIES do
+    output TIMES, BY_COUNT[TIMES]
+end loop
+
+// Set operations by hand
+Set<Integer> EVENS = [2, 4, 6, 8, 10, 12, 14, 16]
+Set<Integer> SQUARES = [1, 4, 9, 16]
+Set<Integer> BOTH
+loop for N in EVENS do
+    if SQUARES.includes(N) then
+        BOTH.add(N)
+    end if
+end loop
+output "even squares:", BOTH
+
+// UnorderedSet holds anything with equality, such as arrays; it has no order
+UnorderedSet SEEN = [[1, 2], [2, 1], [1, 2]]
+output SEEN.size(), SEEN.includes([2, 1])
+
+// UnorderedMultiset holds any value, even functions
+function Integer ONE() begin
+    return 1
+end function
+UnorderedMultiset ANY = [ONE, ONE, "text"]
+output ANY.size()
+
+// Tuples are immutable and can be dictionary keys
+Dictionary<Tuple<String, String>, Integer> DISTANCES = {("Kyiv", "Lviv"): 540}
+DISTANCES[("Kyiv", "Odesa")] = 475
+output DISTANCES[("Kyiv", "Lviv")], DISTANCES.size()
+
+// Iterators walk a collection by hand
+Iterator<String> WALK = UNIQUE.iterator()
+loop while WALK.has_next() do
+    String WORD = WALK.next()
+    if WORD = "mat" then
+        output "found mat"
+        break
+    end if
+end loop
+
+// Converting between collections uses constructors
+output Array<String>(UNIQUE), Tuple(FREQUENCIES), DynamicArray(Stack([1, 2, 3]))

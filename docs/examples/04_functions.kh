@@ -1,0 +1,89 @@
+// 04 · Functions and procedures
+// Functions return a value, procedures do not. Both are values themselves.
+
+function Integer FACTORIAL(Integer N) begin
+    if N <= 1 then
+        return 1
+    end if
+    return N * FACTORIAL(N - 1)
+end function
+
+function Integer GCD(Integer A, Integer B) begin
+    loop while B <> 0 do
+        Integer R = A mod B
+        A = B
+        B = R
+    end loop
+    return A
+end function
+
+// Untyped parameters and result: any values that support `>`
+function LARGER(A, B) begin
+    if A > B then
+        return A
+    end if
+    return B
+end function
+
+// Parameters with default values come last
+function String REPEAT(String TEXT, Integer TIMES = 2, String SEPARATOR = " ") begin
+    String RESULT = TEXT
+    loop I from 2 to TIMES do
+        RESULT = RESULT + SEPARATOR + TEXT
+    end loop
+    return RESULT
+end function
+
+// A procedure may leave early with a bare `return`
+procedure REPORT(String LABEL, VALUE) begin
+    if VALUE = none then
+        output LABEL + ": nothing"
+        return
+    end if
+    output LABEL + ":", VALUE
+end procedure
+
+output FACTORIAL(10), GCD(84, 36)
+output LARGER(3, 7), LARGER("pear", "apple")
+output REPEAT("ha"), REPEAT("ha", 3), REPEAT("ha", 3, "-")
+REPORT("answer", 42)
+REPORT("missing", none)
+
+// Functions can be stored, passed and returned
+function Integer SQUARE(Integer X) begin
+    return X * X
+end function
+
+function Integer DOUBLE(Integer X) begin
+    return X * 2
+end function
+
+function Array<Integer> MAP(FunctionType F, Array<Integer> ITEMS) begin
+    Array<Integer> RESULT
+    loop for ITEM in ITEMS do
+        RESULT[RESULT.size()] = F(ITEM)
+    end loop
+    return RESULT
+end function
+
+Array<FunctionType> PIPELINE = [SQUARE, DOUBLE]
+Array<Integer> NUMBERS = [1, 2, 3, 4]
+loop for STEP in PIPELINE do
+    NUMBERS = MAP(STEP, NUMBERS)
+end loop
+output NUMBERS
+
+// A function defined inside another one, and returned from it
+function COMPOSE(FunctionType FIRST, FunctionType SECOND) begin
+    function COMPOSED(X) begin
+        return SECOND(FIRST(X))
+    end function
+    return COMPOSED
+end function
+output COMPOSE(SQUARE, DOUBLE)(5), COMPOSE(DOUBLE, SQUARE)(5)
+
+// Converting between functions and procedures
+ProcedureType RUN_ONLY = ProcedureType(SQUARE)   // runs SQUARE, ignores the result
+RUN_ONLY(3)
+FunctionType REPORT_OK = FunctionType(REPORT, "ok")
+output REPORT_OK("status", 200)                  // REPORT writes a line, then "ok"

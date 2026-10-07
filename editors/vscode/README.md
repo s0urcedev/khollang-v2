@@ -12,7 +12,7 @@ It also sets up `//` comments, bracket pairs and indentation after block headers
 Link this folder into the VS Code extensions folder and restart VS Code:
 
 ```
-ln -s "$(pwd)" ~/.vscode/extensions/khollang
+ln -sfn "$(pwd)" ~/.vscode/extensions/khollang
 ```
 
 Or package it and install the `.vsix` file:

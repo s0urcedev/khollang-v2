@@ -7,19 +7,15 @@ Syntax highlighting for [Khollang](../../README.md) programs (`.kh` files): keyw
 
 It also sets up `//` comments, bracket pairs and indentation after block headers.
 
+## Running a file
+
+The ▶ button in the editor title bar, or **Khollang: Run File** in the Command Palette, saves the open `.kh` file and runs `khol <file>` in a terminal named "Khollang". `khol` has to be on the `PATH` ([installation](../../README.md#installation)). The program's input is typed into that terminal.
+
 ## Installation
 
-Link this folder into the VS Code extensions folder and restart VS Code:
-
-```
-ln -sfn "$(pwd)" ~/.vscode/extensions/khollang
-```
-
-Or package it and install the `.vsix` file:
+Package this folder into the VS Code and install the `.vsix` file:
 
 ```
 npx @vscode/vsce package
 code --install-extension khollang-1.0.0.vsix
 ```
-
-To try changes, open this folder in VS Code and press **F5**: a second window opens with the extension loaded. **Developer: Inspect Editor Tokens and Scopes** shows how any piece of text is highlighted.

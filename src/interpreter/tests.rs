@@ -2616,6 +2616,32 @@ fn limits_files() {
 }
 
 #[test]
+fn the_default_of_a_limits_file() {
+    use super::limits::Limit;
+    // the limits that are not mentioned get the default, wherever it is in the file
+    let text = Limits::parse_text("arrays: 5\ndefault: 2\nintegers: null").unwrap();
+    let json = Limits::parse_json("{\"arrays\": 5, \"default\": 2, \"integers\": null}").unwrap();
+    for limits in [&text, &json] {
+        assert_eq!(limits.get(Limit::Arrays), Some(5));
+        assert_eq!(limits.get(Limit::Integers), None);
+        for limit in Limit::ALL.iter().filter(|l| ![Limit::Arrays, Limit::Integers].contains(l)) {
+            assert_eq!(limits.get(*limit), Some(2), "{}", limit.name());
+        }
+    }
+    // `default: null` is the same as no default
+    let unlimited = Limits::parse_text("default: null\narrays: 1").unwrap();
+    assert_eq!(unlimited.get(Limit::Arrays), Some(1));
+    assert_eq!(unlimited.get(Limit::Integers), None);
+    for bad in ["default: -1", "default: x", "default:"] {
+        assert!(Limits::parse_text(bad).is_err(), "text `{bad}`");
+    }
+    assert_eq!(Limit::from_name("default"), None);
+    // a default of 0 forbids what is not allowed explicitly
+    within("output 1", "default: 0\nstatements: null\noutput_statements: 1\nintegers: null");
+    over("let A = 1", "default: 0\nstatements: null\nintegers: null", 1, "variable_declarations");
+}
+
+#[test]
 fn every_limit_has_a_unique_name_that_round_trips() {
     let mut names = std::collections::HashSet::new();
     for limit in super::limits::Limit::ALL {

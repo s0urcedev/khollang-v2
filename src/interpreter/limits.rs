@@ -1,7 +1,8 @@
 //! Limits: a teacher restricts what a program may use, to check that it works without some
 //! features ([design 6](../../.claude/docs/design.md)).
 //!
-//! A limit has a name and a value, which is a number or `null` (unlimited, the default).
+//! A limit has a name and a value, which is a number or `null` (unlimited). A limit that the
+//! file does not mention gets the file's `default`, which is `null` when it is not given.
 //! Static limits count the constructs of the source and are checked before the program
 //! runs. Runtime limits count variables and values while it runs.
 
@@ -160,7 +161,7 @@ impl Limits {
     /// The text format: one `name: value` per line, where the value is a whole number or
     /// `null`. Empty lines are ignored.
     pub fn parse_text(text: &str) -> Result<Limits, String> {
-        let mut limits = Limits::none();
+        let mut limits = Entries::new();
         for (index, line) in text.lines().enumerate() {
             let line = line.trim();
             if line.is_empty() {
@@ -172,12 +173,12 @@ impl Limits {
             };
             limits.assign(name.trim(), value.trim()).map_err(|e| format!("line {at}: {e}"))?;
         }
-        Ok(limits)
+        Ok(limits.finish())
     }
 
     /// The JSON format: one object that maps names to whole numbers or `null`.
     pub fn parse_json(text: &str) -> Result<Limits, String> {
-        let mut limits = Limits::none();
+        let mut limits = Entries::new();
         let mut chars = text.chars().peekable();
         let skip = |chars: &mut std::iter::Peekable<std::str::Chars>| {
             while chars.peek().is_some_and(|c| c.is_whitespace()) {
@@ -230,14 +231,39 @@ impl Limits {
         if chars.next().is_some() {
             return Err("unexpected text after the JSON object".into());
         }
-        Ok(limits)
+        Ok(limits.finish())
+    }
+}
+
+/// The entries of a limits file while it is read. `default` is the value of every limit
+/// that the file does not mention, unlimited when it is not given.
+struct Entries {
+    values: Vec<Option<Option<u64>>>,
+    default: Option<u64>,
+}
+
+impl Entries {
+    fn new() -> Self {
+        Entries {
+            values: vec![None; Limit::ALL.len()],
+            default: None,
+        }
     }
 
     fn assign(&mut self, name: &str, value: &str) -> Result<(), String> {
-        let Some(limit) = Limit::from_name(name) else {
+        let value = Entries::value(name, value)?;
+        if name == "default" {
+            self.default = value;
+        } else if let Some(limit) = Limit::from_name(name) {
+            self.values[limit as usize] = Some(value);
+        } else {
             return Err(format!("unknown limit `{name}`"));
-        };
-        let value = if value == "null" {
+        }
+        Ok(())
+    }
+
+    fn value(name: &str, value: &str) -> Result<Option<u64>, String> {
+        Ok(if value == "null" {
             None
         } else if !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()) {
             Some(
@@ -249,9 +275,13 @@ impl Limits {
             return Err(format!(
                 "the value of `{name}` must be a whole number or null, found `{value}`"
             ));
-        };
-        self.set(limit, value);
-        Ok(())
+        })
+    }
+
+    fn finish(self) -> Limits {
+        Limits {
+            values: self.values.into_iter().map(|value| value.unwrap_or(self.default)).collect(),
+        }
     }
 }
 

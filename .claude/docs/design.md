@@ -420,11 +420,12 @@ The executor does the following where [syntax 16](syntax.md#16-unspecified-behav
 
 ## 6. Limits
 
-A teacher sets limits to check that a student's program works without some features, or with a bounded number of values. A limit has a name and a number, or `null` for unlimited, which is the default of every limit. Limits belong to the interpreter run (`khol code.txt limits.json`), not to the language. [`limits.md`](limits.md) describes them for the people who set them, with every limit and examples. This section is how the interpreter does it.
+A teacher sets limits to check that a student's program works without some features, or with a bounded number of values. A limit has a name and a number, or `null` for unlimited. A limit that the file does not mention gets the file's `default`, which is `null` when it is not given. Limits belong to the interpreter run (`khol code.txt limits.json`), not to the language. [`limits.md`](limits.md) describes them for the people who set them, with every limit and examples. This section is how the interpreter does it.
 
 ### 6.1 The limits file
 
 - The second argument of `khol` is a limits file. A file whose name ends with `.json` is JSON, any other is text.
+- Both formats accept the name `default`, which is not a limit. The parser collects the values that the file sets, then gives every limit that is not set the value of `default` (`null` when it is missing), so `default` can be anywhere in the file and an explicit `null` stays unlimited.
 - **Text**: one `name: value` per line. The value is a whole number or `null`. Empty lines are ignored. There are no comments.
 - **JSON**: one object that maps names to whole numbers or `null`:
 

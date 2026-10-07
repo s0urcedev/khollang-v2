@@ -26,7 +26,9 @@ The limits file is the optional second argument. Without it nothing is limited.
 
 ## 2. The limits file
 
-A file whose name ends with `.json` is read as JSON, any other file as text. Both formats map a limit name to a whole number or `null`. `null` means unlimited, which is also what a limit that is not mentioned gets. `0` is a valid number: it forbids the thing.
+A file whose name ends with `.json` is read as JSON, any other file as text. Both formats map a limit name to a whole number or `null`. `null` means unlimited. `0` is a valid number: it forbids the thing.
+
+The name `default` is not a limit: its value, a whole number or `null`, is what every limit that the file does not mention gets. Without `default`, or with `default: null`, a limit that is not mentioned is unlimited. A limit set to `null` explicitly is unlimited whatever `default` is. `default` can be anywhere in the file.
 
 **JSON**: one object.
 
@@ -47,6 +49,19 @@ arrays: null
 ```
 
 The static and the runtime limits are written together in the same file.
+
+With a default, the file lists what is allowed instead of what is forbidden. Here everything is forbidden except `output`, the Integers it writes, and at most one `if`:
+
+```json
+{
+    "default": 0,
+    "statements": null,
+    "output_statements": null,
+    "integers": null,
+    "if_statements": 1,
+    "condition_statements": 1
+}
+```
 
 An unknown limit name, a negative or non-integer value, a value that is not a number or `null`, or any other mistake in the file is an error, and the program does not start.
 

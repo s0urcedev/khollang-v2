@@ -1,6 +1,6 @@
 # Khollang
 
-Khollang is an educational programming language with a simple, pseudocode-like syntax and functionality to limit which parts of the language a program can use.
+Khollang is an educational programming language with a simple pseudocode-like syntax and functionality to limit which parts of the language a program can use.
 
 This is version 2, an interpreter written in Rust. Version 1, written in Python, is at [github.com/s0urcedev/khollang](https://github.com/s0urcedev/khollang).
 
